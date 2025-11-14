@@ -1,22 +1,31 @@
 ---
 title: "Rock Nitrogen"
 author: "Rebecca Martinez"
-date: "2025-11-14"
-output: html_document
-execute:
-  echo: false      
-  warning: false  
-  message: false  
-  error: false     
+date: "November 14, 2025"
+output: 
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# Set global options for all chunks
+knitr::opts_chunk$set(
+  echo = FALSE,     # hide code
+  warning = FALSE,  # hide warnings
+  message = FALSE,  # hide messages
+  error = FALSE     # hide errors
+)
+
+
 #install.packages("tidyverse")
-#library(tidyverse)
-#library(janitor) #clean data 
-#library(gt)
+#install.packages("gt")
+#install.packages("flextable")
+#intall.packages("janitor")
+library(tidyverse)
+library(janitor) #clean data 
+library(gt)
 library(flextable)
+
 ```
 
 ```{r data cleaning}
@@ -44,17 +53,23 @@ rock_n_full <- rock_nitrogen %>%
 
 ```
 
-#Rock Nitrogen PPM from Santa Cruz Island and Sedgwick Reserves
+# Rock Nitrogen PPM from Santa Cruz Island and Sedgwick Reserves
 
+## Summary Tables
 
-```{r tables}
+This section summarizes nitrogen concentrations for all rock samples after cleaning the dataset.
+
+Seperated by location:
+```{r gt table}
 
 # Create wide table: average nitrogen per sample
 rock_summary_wide <- rock_n_full %>%
   mutate(
-    soaked = factor(soaked,
-                     levels = c("no", "yes"),
-                     labels = c("Not Peroxide Soaked", "Peroxide Soaked"))
+    soaked = factor(
+      soaked,
+      levels = c("no", "yes"),
+      labels = c("Not Peroxide Soaked", "Peroxide Soaked")
+    )
   ) %>%
   group_by(sample_name, soaked, location, rock_type) %>%
   summarize(
@@ -62,14 +77,15 @@ rock_summary_wide <- rock_n_full %>%
     .groups = "drop"
   ) %>%
   pivot_wider(
-    names_from = soaked,         
-    values_from = avg_n_ppm      
+    names_from = soaked,
+    values_from = avg_n_ppm
   )
 
-# Display table with gt
+
+#Display table with gt
 
 rock_summary_wide %>%
-  gt(groupname_col = "location") %>%   
+  gt(groupname_col = "location") %>%
   tab_header(title = "Average Nitrogen (ppm) per Sample") %>%
   cols_label(
     sample_name = "Sample Name",
@@ -87,8 +103,22 @@ rock_summary_wide %>%
     table.border.top.color = "black",
     table.border.bottom.color = "black"
   )
+```
 
-rock_summary_wide %>%
+Not seperated by location:
+
+```{r flextable}
+#Order table by nitrogen
+
+rock_summary_wide_sorted <- rock_summary_wide %>%
+  mutate(max_n_ppm = pmax(`Not Peroxide Soaked`, `Peroxide Soaked`, na.rm = TRUE)) %>%
+  arrange(desc(max_n_ppm)) %>%
+  select(-max_n_ppm)
+
+
+#Create the flextable
+
+rock_summary_wide_sorted %>%
   flextable() %>%
   set_header_labels(
     sample_name = "Sample Name",
@@ -103,62 +133,15 @@ rock_summary_wide %>%
 
 ```
 
+## Visualization 1: Nitrogen by Rock Type and Treatment
 
-```{r visuals}
+This first figure compares nitrogen concentrations across rock types and shows whether each sample was peroxide-soaked.
+It helps identify any treatment effects within each rock type..
 
-ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
-  geom_col(position = "dodge") +               # side-by-side bars
-  scale_fill_manual(
-    values = c("yes" = "steelblue", "no" = "orange"),  # optional: pick colors
-    labels = c("yes" = "peroxide soaked", "no" = "not soaked") # rename legend labels
-  ) +
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = NULL   # removes legend title
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```{r visual 1}
 
-ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = location)) +
-  geom_col(position = "stack") +                 # stack bars by location
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = "Location"                            # legend for location
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = location)) +
-  geom_col(position = "stack") +                 # stack bars by location
-  facet_wrap(~ soaked) +                         # separate panels by soaked status
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = "Location"                            # legend for location
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
-  geom_col(position = "dodge") +  # side-by-side bars for soaked vs not soaked
-  facet_wrap(~ location) +        # separate panels for each location
-  scale_fill_manual(
-    values = c("yes" = "steelblue", "no" = "orange"),
-    labels = c("yes" = "Peroxide Soaked", "no" = "Not Peroxide Soaked")
-  ) +
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = NULL                  # removes legend title
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
 ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
   geom_col(position = "dodge") +
-  facet_grid(. ~ location) +  # single row, one column per location
   scale_fill_manual(
     values = c("yes" = "steelblue", "no" = "orange"),
     labels = c("yes" = "Peroxide Soaked", "no" = "Not Peroxide Soaked")
@@ -171,46 +154,147 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# Boxplot
-ggplot(rock_avg, aes(x = rock_type, y = mean_n_ppm, fill = soaked)) +
-  geom_boxplot() +  # whiskers and outliers
-  facet_wrap(~ location) +                               # separate panels by location
+```
+
+## Visualization 2: Nitrogen by Rock Type and Location
+
+This plot displays nitrogen values stacked by location within each rock type.
+
+```{r visual 2}
+ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = location)) +
+  geom_col(position = "stack") +
+  labs(
+    x = "Rock Type",
+    y = "Nitrogen (ppm)",
+    fill = "Location"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## Visualization 3: Nitrogen by Location, Faceted by Treatment
+
+This figure separates samples into two panels — soaked vs not soaked — while showing contributions from each location.
+
+```{r visual 3}
+ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = location)) +
+  geom_col(position = "stack") +
+  facet_wrap(~ soaked) +
+  labs(
+    x = "Rock Type",
+    y = "Nitrogen (ppm)",
+    fill = "Location"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+# Visualization : Nitrogen by Treatment, Faceted by Location
+
+This flips the previous comparison.
+Now each panel is a location, and bars compare soaked vs not soaked.
+
+```{r visual 4}
+
+ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~ location) +
   scale_fill_manual(
     values = c("yes" = "steelblue", "no" = "orange"),
-    labels = c("Not Peroxide Soaked", "Peroxide Soaked"))
-  )
+    labels = c("yes" = "Peroxide Soaked", "no" = "Not Peroxide Soaked")
   ) +
   labs(
     x = "Rock Type",
     y = "Nitrogen (ppm)",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  
+```
+
+## Visualization 5: Compact Location Comparison
+
+Same content as above but in a single horizontal row for cleaner comparison.
+
+```{r visual 5}
+ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
+  geom_col(position = "dodge") +
+  facet_grid(. ~ location) +
+  scale_fill_manual(
+    values = c("yes" = "steelblue", "no" = "orange"),
+    labels = c("yes" = "Peroxide Soaked", "no" = "Not Peroxide Soaked")
+  ) +
+  labs(
+    x = "Rock Type",
+    y = "Nitrogen (ppm)",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+##Visualization 6: Boxplot of Mean Nitrogen Values
+
+This boxplot shows the distribution of mean nitrogen per rock type, separated by location.
+
+```{r visual 6}
+
+# Create rock_avg with rock_type included
+rock_avg <- rock_n_full %>%
+  mutate(
+    soaked = factor(
+      soaked,
+      levels = c("no", "yes"),
+      labels = c("Not Peroxide Soaked", "Peroxide Soaked")
+    )
+  ) %>%
+  group_by(rock_type, location, soaked) %>%   # include rock_type here
+  summarize(
+    avg_n_ppm = mean(n_ppm, na.rm = TRUE),
+    sd_n_ppm = sd(n_ppm, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+# Pivot to wide format if needed
+rock_avg_wide <- rock_avg %>%
+  pivot_wider(
+    names_from = soaked,
+    values_from = avg_n_ppm
+  )
+
+# Boxplot of nitrogen by rock_type and soaked, faceted by location
+ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = soaked)) +
+  geom_boxplot() +
+  facet_wrap(~ location) +
+  labs(
+    x = "Rock Type",
+    y = "Mean Nitrogen (ppm)",
     fill = NULL
   ) +
   theme_classic() +
-theme(
+  theme(
     panel.background = element_rect(fill = "gray95", color = "black"),
-    panel.spacing = unit(1.2, "lines"),
-    axis.text.x = element_text(angle = 45, hjust = 1))
-
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
 
 ```
 
+## Visualization 7
 
+Side-by-side bar plot using rock average
 
-```{r}
+```{r visual 7}
 
-
-rock_avg <- rock_avg |>
-  mutate(
-    soaked = factor(soaked,
-                     levels = c("no", "yes"),
-                     labels = c("Not Peroxide Soaked", "Peroxide Soaked"))
-  )
-
-# Side-by-side bar plot by rock type, filled by location
-ggplot(rock_avg, aes(x = rock_type, y = mean_n_ppm, fill = location)) +
-  geom_col(position = position_dodge(width = 0.8)) +   # side-by-side bars
-  scale_y_continuous(expand = c(0, 0)) +              # start y-axis at 0
+ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  scale_y_continuous(expand = c(0, 0)) +
   labs(
     x = "Rock Type",
     y = "Mean Nitrogen (ppm)",
@@ -221,10 +305,15 @@ ggplot(rock_avg, aes(x = rock_type, y = mean_n_ppm, fill = location)) +
   ) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        
+```
 
+## Visualization 8
 
-# Whisker/boxplot by rock type, filled by location, dodged by soaked
-ggplot(rock_avg, aes(x = rock_type, y = mean_n_ppm, fill = location)) +
+Boxplot by rock type, filled by location
+
+```{r}
+ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
   geom_boxplot(position = position_dodge(width = 0.8), outlier.shape = 16, outlier.size = 2) +
   labs(
     x = "Rock Type",
@@ -240,109 +329,3 @@ ggplot(rock_avg, aes(x = rock_type, y = mean_n_ppm, fill = location)) +
 ```
 
 
-
-
-```{r}
-
-
-rock_summary_wide <- rock_n_full %>%
-  mutate(
-    soaked = factor(soaked,
-                     levels = c("no", "yes"),
-                     labels = c("Not Peroxide Soaked", "Peroxide Soaked"))
-  ) %>%
-  group_by(sample_name, soaked, location) %>%
-  summarize(
-    avg_n_ppm = mean(n_ppm, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  pivot_wider(
-    names_from = soaked,         # create columns from soaked factor
-    values_from = avg_n_ppm      # fill with average n_ppm
-  )
-
-# View the wide table
-rock_summary_wide
-
-
-rock_summary_wide <- rock_n_full %>%
-  mutate(
-    soaked = factor(soaked,
-                     levels = c("no", "yes"),
-                     labels = c("Not Peroxide Soaked", "Peroxide Soaked"))
-  ) %>%
-  group_by(sample_name, soaked, location) %>%
-  summarize(
-    avg_n_ppm = mean(n_ppm, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  pivot_wider(
-    names_from = soaked,         # create columns from soaked factor
-    values_from = avg_n_ppm      # fill with average n_ppm
-  )
-
-
-# Make a nice looking table with gt
-rock_summary_wide %>%
-  gt() %>%
-  tab_header(
-    title = "Average Nitrogen Parts Per Million (ppm)"
-  ) %>%
-  cols_label(
-    sample_name = "Sample Name",
-    location = "Location",
-    `Not Peroxide Soaked` = "Not Peroxide Soaked",
-    `Peroxide Soaked` = "Peroxide Soaked"
-  ) %>%
-  fmt_number(
-    columns = c(`Not Peroxide Soaked`, `Peroxide Soaked`),
-    decimals = 2
-  ) %>%
-  tab_options(
-    table.font.names = "Arial",
-    heading.title.font.size = 16,
-    heading.subtitle.font.size = 12,
-    table.border.top.color = "black",
-    table.border.bottom.color = "black"
-  )
-
-
-
-# Prepare wide summary table
-rock_summary_wide <- rock_n_full %>%
-  mutate(
-    soaked = factor(soaked,
-                     levels = c("no", "yes"),
-                     labels = c("Not Peroxide Soaked", "Peroxide Soaked"))
-  ) %>%
-  group_by(sample_name, soaked, location) %>%
-  summarize(
-    avg_n_ppm = mean(n_ppm, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  pivot_wider(
-    names_from = soaked,
-    values_from = avg_n_ppm
-  )
-
-# Create one nice table with rows grouped by location
-rock_summary_wide %>%
-  gt(groupname_col = "location") %>%   # group rows by location
-  tab_header(title = "Average Nitrogen Parts per Million (ppm)") %>%
-  cols_label(
-    sample_name = "Sample Name",
-    `Not Peroxide Soaked` = "Not Peroxide Soaked",
-    `Peroxide Soaked` = "Peroxide Soaked"
-  ) %>%
-  fmt_number(
-    columns = c(`Not Peroxide Soaked`, `Peroxide Soaked`),
-    decimals = 2
-  ) %>%
-  tab_options(
-    table.font.names = "Arial",
-    heading.title.font.size = 16,
-    table.border.top.color = "black",
-    table.border.bottom.color = "black"
-  )
-
-```
