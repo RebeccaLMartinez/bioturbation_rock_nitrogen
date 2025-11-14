@@ -3,8 +3,8 @@ title: "Rock Nitrogen"
 author: "Rebecca Martinez"
 date: "November 14, 2025"
 output: 
-  html_document: default
-  pdf_document: default
+  html_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -15,7 +15,6 @@ knitr::opts_chunk$set(
   message = FALSE,  # hide messages
   error = FALSE     # hide errors
 )
-
 
 #install.packages("tidyverse")
 #install.packages("gt")
@@ -191,7 +190,7 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = location)) +
 
 ```
 
-# Visualization : Nitrogen by Treatment, Faceted by Location
+## Visualization 4: Nitrogen by Treatment, Faceted by Location
 
 This flips the previous comparison.
 Now each panel is a location, and bars compare soaked vs not soaked.
@@ -216,33 +215,12 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
   
 ```
 
-## Visualization 5: Compact Location Comparison
 
-Same content as above but in a single horizontal row for cleaner comparison.
-
-```{r visual 5}
-ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
-  geom_col(position = "dodge") +
-  facet_grid(. ~ location) +
-  scale_fill_manual(
-    values = c("yes" = "steelblue", "no" = "orange"),
-    labels = c("yes" = "Peroxide Soaked", "no" = "Not Peroxide Soaked")
-  ) +
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = NULL
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-```
-
-##Visualization 6: Boxplot of Mean Nitrogen Values
+## Visualization 5: Boxplot of Mean Nitrogen Values
 
 This boxplot shows the distribution of mean nitrogen per rock type, separated by location.
 
-```{r visual 6}
+```{r visual 5}
 
 # Create rock_avg with rock_type included
 rock_avg <- rock_n_full %>%
@@ -286,11 +264,11 @@ ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = soaked)) +
 
 ```
 
-## Visualization 7
+## Visualization 6
 
 Side-by-side bar plot using rock average
 
-```{r visual 7}
+```{r visual 6}
 
 ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
   geom_col(position = position_dodge(width = 0.8)) +
@@ -308,11 +286,11 @@ ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
         
 ```
 
-## Visualization 8
+## Visualization 7
 
 Boxplot by rock type, filled by location
 
-```{r}
+```{r visual 7}
 ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
   geom_boxplot(position = position_dodge(width = 0.8), outlier.shape = 16, outlier.size = 2) +
   labs(
@@ -326,6 +304,7 @@ ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
   theme_test() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+
 ```
 
-
+*Still a work in progress...*
