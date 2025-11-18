@@ -35,6 +35,13 @@ library(cowplot) # plots into objects, insert objects to make grid
 rock_nitrogen <- read_csv("data_raw/rock_samples_SIF_results.csv") %>%
   clean_names()
 
+#KGA: Check out the changes I made with the GitHub comparison tool
+#KGA: #1 Im pretty sure that rather than `TRUE ~ NA_character_` you can just do `TRUE ~ NA`
+#KGA: #2 In regards to: sample_name = str_extract(sample_id, ".*(?=-[pn]-)")
+#KGA: To me this says that you are looking for a match to all characters, up to (but not including) -p- OR -n-
+#KGA: I have modified below for (what I think) is an easier version of this,, or at least I think it is easier to understand what's going on
+#KGA: str_extract(sample_id, "(.*)-[pn]-", group = 1)
+#KGA: that says "extract the following string from sample_id,, and only extract what is contained in group 1 (the string contained by the parentheses). The pattern is "everything, -(p OR n)-""
 rock_n_full <- rock_nitrogen %>%
   mutate(across(where(is.character),
                 ~ str_squish(.) %>%
@@ -45,13 +52,13 @@ rock_n_full <- rock_nitrogen %>%
     soaked = case_when(
       str_detect(sample_id, "-p-") ~ "yes",
       str_detect(sample_id, "-n-") ~ "no",
-      TRUE ~ NA_character_
+      TRUE ~ NA
     ),
-    sample_name = str_extract(sample_id, ".*(?=-[pn]-)"),
+    sample_name = str_extract(sample_id, "(.*)-[pn]-", group = 1),
     location = if_else(str_detect(sample_name, "p1"), "Sedgwick", "SCI")
   ) %>%
   filter(sample_name != "ref_soil")
-
+#KGA: also, i'm not sure what ref_soil is or why it is being removed. is this your control?
 ```
 
 # Rock Nitrogen PPM from Santa Cruz Island and Sedgwick Reserves
