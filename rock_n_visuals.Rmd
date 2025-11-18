@@ -20,10 +20,12 @@ knitr::opts_chunk$set(
 #install.packages("gt")
 #install.packages("flextable")
 #intall.packages("janitor")
+#install.packages("cowplot")
 library(tidyverse)
 library(janitor) #clean data 
 library(gt)
 library(flextable)
+library(cowplot) # plots into objects, insert objects to make grid
 
 ```
 
@@ -221,7 +223,7 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
 This boxplot shows the distribution of mean nitrogen per rock type, separated by location.
 
 ```{r visual 5}
-
+# don't plot mean - boxplot shows mean, silly
 # Create rock_avg with rock_type included
 rock_avg <- rock_n_full %>%
   mutate(
