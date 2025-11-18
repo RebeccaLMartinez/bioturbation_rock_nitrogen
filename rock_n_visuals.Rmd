@@ -45,9 +45,9 @@ rock_n_full <- rock_nitrogen %>%
     soaked = case_when(
       str_detect(sample_id, "-p-") ~ "yes",
       str_detect(sample_id, "-n-") ~ "no",
-      TRUE ~ NA_character_
+      TRUE ~ NA
     ),
-    sample_name = str_extract(sample_id, ".*(?=-[pn]-)"),
+   sample_name = str_extract(sample_id, "(.*)-[pn]-", group = 1),
     location = if_else(str_detect(sample_name, "p1"), "Sedgwick", "SCI")
   ) %>%
   filter(sample_name != "ref_soil")
@@ -218,9 +218,9 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
 ```
 
 
-## Visualization 5: Boxplot of Mean Nitrogen Values
+## Visualization 5: Boxplot of Nitrogen Values
 
-This boxplot shows the distribution of mean nitrogen per rock type, separated by location.
+This boxplot shows the distribution of nitrogen per rock type, separated by location.
 
 ```{r visual 5}
 # don't plot mean - boxplot shows mean, silly
@@ -249,12 +249,12 @@ rock_avg_wide <- rock_avg %>%
   )
 
 # Boxplot of nitrogen by rock_type and soaked, faceted by location
-ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = soaked)) +
+ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
   geom_boxplot() +
   facet_wrap(~ location) +
   labs(
     x = "Rock Type",
-    y = "Mean Nitrogen (ppm)",
+    y = "Nitrogen (ppm)",
     fill = NULL
   ) +
   theme_classic() +
