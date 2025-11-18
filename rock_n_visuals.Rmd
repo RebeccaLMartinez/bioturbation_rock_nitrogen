@@ -263,6 +263,10 @@ ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = soaked)) +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
+# simplified rock type with reference in parentheses:
+# sandstone (Tv)
+# shale (Tcd)
+# sandstone (Tjv)
 
 ```
 
