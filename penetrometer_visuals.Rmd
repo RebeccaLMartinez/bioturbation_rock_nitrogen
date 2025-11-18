@@ -1,0 +1,50 @@
+---
+title: "Penetrometer"
+author: "Rebecca Martinez"
+date: "11-18-2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Methods and Measurments
+
+
+The drop cone method measures the depth of penetration resulting from a cone of fixed mass being dropped from a standard height. These have been successfully used to measure shear strength in soils (10; 14). The hammer-type penetrometers use a slide hammer of fixed mass and drop height to apply consistent kinetic energy with each blow. Either the number of blows required to penetrate a specified depth, or the depth of penetration per blow are measured in this method.
+
+Soil penetration resistance \(R_s\) is defined as the work done by the soil divided by the distance the penetrometer travels:
+
+\[
+R_s = \frac{W_s}{P_d}
+\]
+
+where \(R_s\) is the soil resistance (N), \(W_s\) is the work done by the soil (J), and \(P_d\) is the distance the penetrometer travels (m).
+
+The kinetic energy of a hammer of mass \(m = 2 \text{ kg}\) falling a distance \(x = 0.4 \text{ m}\) is:
+
+\[
+v = \sqrt{v_0^2 + 2 a x} = \sqrt{0 + 2 (9.8)(0.4)} = 2.8 \text{ m/s}
+\]
+
+\[
+KE = \frac{1}{2} m v^2 = \frac{1}{2} (2)(2.8)^2 = 7.84 \text{ J}
+\]
+
+Then the soil resistance is calculated as:
+
+\[
+R_s = \frac{W_s}{P_d} = \frac{KE}{P_d}
+\]
+
+
+
+```{r}
+
+
+
+
+
+```
+
