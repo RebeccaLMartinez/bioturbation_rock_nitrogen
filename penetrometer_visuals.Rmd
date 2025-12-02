@@ -6,13 +6,38 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo = FALSE,     # hide code
+  warning = FALSE,  # hide warnings
+  message = FALSE,  # hide messages
+  error = FALSE     # hide errors
+)
+
+#install.packages("tidyverse")
+#install.packages("gt")
+#install.packages("flextable")
+#intall.packages("janitor")
+#install.packages("cowplot")
+library(tidyverse)
+library(janitor) #clean data 
+library(gt)
+library(flextable)
+library(cowplot) # plots into objects, insert objects to make grid
+
+```
+
+```{r data}
+penetromer_raw <- read_csv("data_raw/wide_penetrometer.csv") 
+
+penetromer_clean <- clean_names(penetromer_raw) |> 
+  select(-pd_blows_m, -notes)
+
 ```
 
 ## Methods and Measurments
 
 
-The drop cone method measures the depth of penetration resulting from a cone of fixed mass being dropped from a standard height. These have been successfully used to measure shear strength in soils (10; 14). The hammer-type penetrometers use a slide hammer of fixed mass and drop height to apply consistent kinetic energy with each blow. Either the number of blows required to penetrate a specified depth, or the depth of penetration per blow are measured in this method.
+The drop cone method measures the depth of penetration resulting from a cone of fixed mass being dropped from a standard height. The hammer-type penetrometers use a slide hammer of fixed mass and drop height to apply consistent kinetic energy with each blow. Either the number of blows required to penetrate a specified depth, or the depth of penetration per blow are measured in this method.
 
 Soil penetration resistance \(R_s\) is defined as the work done by the soil divided by the distance the penetrometer travels:
 
@@ -22,14 +47,14 @@ R_s = \frac{W_s}{P_d}
 
 where \(R_s\) is the soil resistance (N), \(W_s\) is the work done by the soil (J), and \(P_d\) is the distance the penetrometer travels (m).
 
-The kinetic energy of a hammer of mass \(m = 2 \text{ kg}\) falling a distance \(x = 0.4 \text{ m}\) is:
+The kinetic energy of a hammer of mass \(m = 4.58 \text{ kg}\) falling a distance \(x = 0.45 \text{ m}\) is:
 
 \[
-v = \sqrt{v_0^2 + 2 a x} = \sqrt{0 + 2 (9.8)(0.4)} = 2.8 \text{ m/s}
+v = \sqrt{v_0^2 + 2 a x} = \sqrt{0 + 2 (9.8)(0.45)} = 2.97 \text{ m/s}
 \]
 
 \[
-KE = \frac{1}{2} m v^2 = \frac{1}{2} (2)(2.8)^2 = 7.84 \text{ J}
+KE = \frac{1}{2} m v^2 = \frac{1}{2} (4.58)(2.97)^2 = 20.20 \text{ J}
 \]
 
 Then the soil resistance is calculated as:
@@ -40,9 +65,12 @@ R_s = \frac{W_s}{P_d} = \frac{KE}{P_d}
 
 
 
+
 ```{r}
 
+sqrt(2*(9.8*.45))
 
+.5*(4.58*(2.97^2))
 
 
 
