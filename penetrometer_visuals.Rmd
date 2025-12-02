@@ -2,7 +2,9 @@
 title: "Penetrometer"
 author: "Rebecca Martinez"
 date: "11-18-2025"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
