@@ -27,10 +27,10 @@ library(cowplot) # plots into objects, insert objects to make grid
 ```
 
 ```{r data}
-penetromer_raw <- read_csv("data_raw/wide_penetrometer.csv") 
+penetrometer_raw <- read_csv("data_raw/wide_penetrometer.csv") 
 
-penetromer_clean <- clean_names(penetromer_raw) |> 
-  select(-pd_blows_m, -notes)
+penetrometer_clean <- clean_names(penetrometer_raw) |> 
+  select(-pd_blows_m, -notes, -average_number_blows, -face_distance_m)
 
 ```
 
@@ -47,6 +47,7 @@ R_s = \frac{W_s}{P_d}
 
 where \(R_s\) is the soil resistance (N), \(W_s\) is the work done by the soil (J), and \(P_d\) is the distance the penetrometer travels (m).
 
+
 The kinetic energy of a hammer of mass \(m = 4.58 \text{ kg}\) falling a distance \(x = 0.45 \text{ m}\) is:
 
 \[
@@ -57,6 +58,8 @@ v = \sqrt{v_0^2 + 2 a x} = \sqrt{0 + 2 (9.8)(0.45)} = 2.97 \text{ m/s}
 KE = \frac{1}{2} m v^2 = \frac{1}{2} (4.58)(2.97)^2 = 20.20 \text{ J}
 \]
 
+
+
 Then the soil resistance is calculated as:
 
 \[
@@ -64,13 +67,164 @@ R_s = \frac{W_s}{P_d} = \frac{KE}{P_d}
 \]
 
 
+\[
+P_d ={P_d} blows/m
+\]
+
 
 
 ```{r}
+# long format
 
-sqrt(2*(9.8*.45))
+pen_clean <- penetrometer_clean |>
+  rename_with(
+    ~ str_replace(.x, "blows_(\\d+)_cm", function(m) {
+      num <- as.numeric(sub("blows_(\\d+)_cm", "\\1", m))
+      paste0(num/100, "_m")
+    }),
+    starts_with("blows_")
+  )
 
-.5*(4.58*(2.97^2))
+pen_long <- pen_clean |>
+  pivot_longer(
+    cols = ends_with("_m"),
+    names_to = "depth_m",
+    values_to = "blows"
+  )
+
+clean_pen <- pen_long |> 
+  mutate(
+    depth_m = str_remove(depth_m, "_m"),   # remove the text
+    depth_m = as.numeric(depth_m)          # convert to number
+  ) |> 
+  select(-total_blows) 
+  
+clean_data <- clean_pen |>
+  mutate(
+    pit_group = case_when(
+      str_detect(pit, "CP1") ~ "CP1",
+      str_detect(pit, "tau") ~ "tau",
+      str_detect(pit, "gusty") ~ "gusty",
+      TRUE ~ "other"
+    )
+  )
+
+
+```
+
+```{r resistance calculation}
+
+resistance <- clean_data |>
+  mutate(
+    Pd = blows * 10,        # blows per meter
+    Rs = 20.20 / Pd         # N (soil resistance)
+  )
+
+```
+
+```{r blows vs depth}
+
+ggplot(resistance, aes(x = blows, y = depth_m, 
+                       color = pit_group, group = pit)) +
+  geom_path(linewidth = 1.2) +
+  geom_point(size = 3) +
+  scale_y_reverse() +                  # depth increases downward
+  labs(
+    x = "Blows per 10 cm",
+    y = "Depth (m)",
+    color = "Location",
+    title = "Penetrometer Blows by Depth Across Locations"
+  ) +
+  theme_minimal(base_size = 14)
+
+
+```
+
+```{r}
+
+resistance |>
+  group_by(pit_group, location, depth_m) |>
+  summarise(mean_blows = mean(blows), .groups = "drop") |>
+  ggplot(aes(x = mean_blows, y = depth_m, color = pit_group)) +
+  geom_line(linewidth = 1.5) +
+  scale_y_reverse() +
+  facet_wrap(~ location) +
+  labs(
+    x = "Average Blows per 10 cm",
+    y = "Depth (m)",
+    color = "Pit Group",
+    title = "Mean Penetrometer Blows by Location and Pit Group"
+  ) +
+  theme_minimal(base_size = 14)
+
+```
+
+```{r}
+
+pit_colors <- c(
+  "CP1"   = "darkred",
+  "tau"   = "gold2",
+  "gusty" = "blue3",
+  "other" = "#9467bd"
+)
+
+
+legend_plot <- ggplot(clean_data, aes(x = depth_m, y = blows, color = pit_group)) +
+  geom_point() +
+  scale_color_manual(values = pit_colors, name = "Pit") +
+  theme_minimal()
+
+legend <- cowplot::get_legend(
+  legend_plot + theme(
+    legend.position = "right",
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text  = element_text(size = 12)
+  )
+)
+
+
+p1 <- resistance |>
+  filter(location == "Sedgwick") |>
+  group_by(pit_group, depth_m) |>
+  summarise(mean_blows = mean(blows), .groups = "drop") |>
+  ggplot(aes(x = mean_blows, y = depth_m,
+             color = pit_group, group = pit_group)) +
+  geom_path(linewidth = 1.2) +
+  geom_point(size = 3) +
+  scale_y_reverse() +
+  scale_color_manual(values = pit_colors) +
+  labs(title = "Sedgwick", x = "Mean Blows per 10 cm", y = "Depth (m)") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+
+p2 <- resistance |>
+  filter(location == "SCI") |>
+  group_by(pit_group, depth_m) |>
+  summarise(mean_blows = mean(blows), .groups = "drop") |>
+  ggplot(aes(x = mean_blows, y = depth_m,
+             color = pit_group, group = pit_group)) +
+  geom_path(linewidth = 1.2) +
+  geom_point(size = 3) +
+  scale_y_reverse() +
+  scale_color_manual(values = pit_colors) +
+  labs(title = "Santa Cruz Island", x = "Mean Blows per 10 cm", y = "Depth (m)") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+
+cowplot::ggdraw() +
+  cowplot::draw_label("Mean Blows vs Depth by Location",
+                      fontface = "bold", size = 18, x = 0.5, y = 0.98) +
+  cowplot::draw_plot(
+    cowplot::plot_grid(
+      cowplot::plot_grid(p1, p2, ncol = 2),
+      legend,
+      ncol = 2,
+      rel_widths = c(0.85, 0.15)
+    ),
+    x = 0, y = 0, width = 1, height = 0.9
+  )
 
 
 
