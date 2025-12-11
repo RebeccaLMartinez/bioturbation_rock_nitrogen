@@ -26,6 +26,7 @@ library(gt)
 library(flextable)
 library(cowplot) # plots into objects, insert objects to make grid
 
+
 ```
 
 ```{r data}
@@ -70,14 +71,20 @@ R_s = \frac{W_s}{P_d} = \frac{KE}{P_d}
 
 
 \[
-P_d ={P_d} blows/m
+P_d = \frac{blows}{m} = \frac{0.10m}{blows}
+\]
+
+So: 
+
+\[
+R_s = \frac{W_s}{P_d} = \frac{0.10}{blows} = \frac{\mult{W_s}{0.10}}{blows}
 \]
 
 
 
 ```{r}
 # long format
-
+# chaned cm to m
 pen_clean <- penetrometer_clean |>
   rename_with(
     ~ str_replace(.x, "blows_(\\d+)_cm", function(m) {
@@ -93,21 +100,28 @@ pen_long <- pen_clean |>
     names_to = "depth_m",
     values_to = "blows"
   )
-
+# rename pit to pen for penetrometer sample at each pit
 clean_pen <- pen_long |> 
   mutate(
+    pen = pit,
     depth_m = str_remove(depth_m, "_m"),   # remove the text
-    depth_m = as.numeric(depth_m)          # convert to number
   ) |> 
   select(-total_blows) 
-  
+
+# create a pit groups  
 clean_data <- clean_pen |>
   mutate(
-    pit_group = case_when(
-      str_detect(pit, "CP1") ~ "CP1",
-      str_detect(pit, "tau") ~ "tau",
-      str_detect(pit, "gusty") ~ "gusty",
+    pit = case_when(
+      str_detect(pen, "CP1") ~ "CP1",
+      str_detect(pen, "tau") ~ "tau",
+      str_detect(pen, "gusty") ~ "gusty",
       TRUE ~ "other"
+    ),
+      pit = recode(
+      pit,
+      "CP1"   = "WML",
+      "tau"   = "TAU",
+      "gusty" = "GDS"
     )
   )
 
@@ -116,118 +130,196 @@ clean_data <- clean_pen |>
 
 ```{r resistance calculation}
 
+# Add Pd and Rs
 resistance <- clean_data |>
   mutate(
-    Pd = blows * 10,        # blows per meter
-    Rs = 20.20 / Pd         # N (soil resistance)
+    Pd = blows / 0.10,      # blows per meter  (your version: note this is actually inverse Pd, but OK)
+    Rs = 202.0 * blows      # resistance per depth increment
+  )
+
+# Rs summary per pit × depth × location
+rs_summary <- resistance |>
+  mutate(depth_m = as.numeric(depth_m)) |>      # convert depth to numeric
+  group_by(pit, depth_m) |>
+  summarise(
+    avg_Rs = mean(Rs, na.rm = TRUE),
+    min_Rs = min(Rs, na.rm = TRUE),
+    max_Rs = max(Rs, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  left_join(
+    resistance |> select(pit, location) |> distinct(),
+    by = "pit"
   )
 
 ```
 
-```{r blows vs depth}
 
-ggplot(resistance, aes(x = blows, y = depth_m, 
-                       color = pit_group, group = pit)) +
-  geom_path(linewidth = 1.2) +
-  geom_point(size = 3) +
-  scale_y_reverse() +                  # depth increases downward
-  labs(
-    x = "Blows per 10 cm",
-    y = "Depth (m)",
-    color = "Location",
-    title = "Penetrometer Blows by Depth Across Locations"
-  ) +
-  theme_minimal(base_size = 14)
-
-
-```
-
-```{r}
-
-resistance |>
-  group_by(pit_group, location, depth_m) |>
-  summarise(mean_blows = mean(blows), .groups = "drop") |>
-  ggplot(aes(x = mean_blows, y = depth_m, color = pit_group)) +
-  geom_line(linewidth = 1.5) +
-  scale_y_reverse() +
-  facet_wrap(~ location) +
-  labs(
-    x = "Average Blows per 10 cm",
-    y = "Depth (m)",
-    color = "Pit Group",
-    title = "Mean Penetrometer Blows by Location and Pit Group"
-  ) +
-  theme_minimal(base_size = 14)
-
-```
-
-```{r}
+```{r pit colors}
 
 pit_colors <- c(
-  "CP1"   = "darkred",
-  "tau"   = "gold2",
-  "gusty" = "blue3",
-  "other" = "#9467bd"
+  "WML"   = "darkred",
+  "TAU"   = "gold4",
+  "GDS" = "darkgreen"
 )
 
 
-legend_plot <- ggplot(clean_data, aes(x = depth_m, y = blows, color = pit_group)) +
-  geom_point() +
-  scale_color_manual(values = pit_colors, name = "Pit") +
-  theme_minimal()
-
-legend <- cowplot::get_legend(
-  legend_plot + theme(
-    legend.position = "right",
-    legend.title = element_text(size = 14, face = "bold"),
-    legend.text  = element_text(size = 12)
-  )
-)
+```
 
 
-p1 <- resistance |>
-  filter(location == "Sedgwick") |>
-  group_by(pit_group, depth_m) |>
-  summarise(mean_blows = mean(blows), .groups = "drop") |>
-  ggplot(aes(x = mean_blows, y = depth_m,
-             color = pit_group, group = pit_group)) +
-  geom_path(linewidth = 1.2) +
-  geom_point(size = 3) +
-  scale_y_reverse() +
-  scale_color_manual(values = pit_colors) +
-  labs(title = "Sedgwick", x = "Mean Blows per 10 cm", y = "Depth (m)") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "none")
 
+```{r first Rs plot}
 
-p2 <- resistance |>
-  filter(location == "SCI") |>
-  group_by(pit_group, depth_m) |>
-  summarise(mean_blows = mean(blows), .groups = "drop") |>
-  ggplot(aes(x = mean_blows, y = depth_m,
-             color = pit_group, group = pit_group)) +
-  geom_path(linewidth = 1.2) +
-  geom_point(size = 3) +
-  scale_y_reverse() +
-  scale_color_manual(values = pit_colors) +
-  labs(title = "Santa Cruz Island", x = "Mean Blows per 10 cm", y = "Depth (m)") +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "none")
-
-
-cowplot::ggdraw() +
-  cowplot::draw_label("Mean Blows vs Depth by Location",
-                      fontface = "bold", size = 18, x = 0.5, y = 0.98) +
-  cowplot::draw_plot(
-    cowplot::plot_grid(
-      cowplot::plot_grid(p1, p2, ncol = 2),
-      legend,
-      ncol = 2,
-      rel_widths = c(0.85, 0.15)
+ggplot(rs_summary,
+       aes(x = avg_Rs, y = depth_m, group = pit, color = pit)) +
+  
+  # --- RIBBON: min_Rs → max_Rs ---
+  geom_ribbon(
+    aes(
+      xmin = min_Rs,
+      xmax = max_Rs,
+      fill = pit
     ),
-    x = 0, y = 0, width = 1, height = 0.9
+    alpha = 0.45,
+    color = NA
+  ) +
+  
+  # --- MEAN Rs LINE ---
+  geom_path(linewidth = 1.2, alpha = 0.9) +
+  
+   # --- DEPTH GOES DOWNWARD ---
+  scale_y_reverse() +
+  
+  facet_wrap(
+    ~ location,
+    labeller = labeller(
+      location = c(
+        "Sedgwick" = "Sedgwick",
+        "SCI"      = "Santa Cruz Island"
+      )
+    )
+  ) +
+  
+  scale_color_manual(
+    name = "Pit",
+    values = c(
+      "WML" = "darkred",
+      "TAU" = "gold3",
+      "GDS" = "#386641"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Pit",
+    values = c(
+      "WML" = "red4",
+      "TAU" = "gold3",
+      "GDS" = "#386641"
+    )
+  ) +
+  
+  labs(
+    x = "Soil Resistance (N)",
+    y = "Depth (m)"
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.background = element_rect(color = "black"),
+    strip.background = element_rect(color = "black"),
+    strip.text = element_text(face = "bold", size = 13),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+
   )
 
+
+
+```
+
+
+
+```{r}
+#disturbance df 
+
+disturbance <- pen_clean |> 
+  rename(group = pit,
+         Pd = total_blows) |> 
+  mutate(pit = case_when(
+      str_detect(group, "CP1") ~ "CP1",
+      str_detect(group, "tau") ~ "tau",
+      str_detect(group, "gusty") ~ "gusty",
+      TRUE ~ "other"
+    ),
+      pit = recode(
+      pit,
+      "CP1"   = "WML",
+      "tau"   = "TAU",
+      "gusty" = "GDS"
+    ),
+    Rs = 20.20 * Pd 
+  ) |> 
+  select(location, pit, group, disturbances, Rs) 
+
+
+# disturbance with Rs calculations
+
+ggplot(disturbance, aes(x = pit, y = disturbances, fill = pit)) +
+  geom_boxplot(alpha = 0.60) +
+  labs(y = "Disturbances") +
+  facet_wrap(
+    ~ location,
+    scales = "free_x", # personal x-axis
+    strip.position = "bottom", #move location names to bottom
+    labeller = labeller(
+      location = c(
+        "Sedgwick" = "Sedgwick",
+        "SCI"      = "Santa Cruz Island"
+      )
+    )
+  ) +
+ scale_color_manual(
+    name = "Pit",
+    values = c(
+      "WML" = "darkred",
+      "TAU" = "gold3",
+      "GDS" = "#386641"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Pit",
+    values = c(
+      "WML" = "darkred",
+      "TAU" = "gold3",
+      "GDS" = "#386641"
+    )
+) +
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold", size = 13),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank()) 
+
+
+
+
+```
+
+
+```{r}
+#df to use for bulk density graph
+#
+
+rs_clean <- resistance |>
+  mutate(depth_m = as.numeric(depth_m)) |>
+  select(Rs, pit, depth_m) |>
+  mutate(depth_cm = depth_m * 100) |> 
+  select(-depth_m)
+
+
+rs_avg <- rs_clean |>
+  group_by(pit, depth_cm) |>
+  summarise(mean_Rs = mean(Rs, na.rm = TRUE)) |>
+  ungroup()
 
 
 ```

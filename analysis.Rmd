@@ -1,0 +1,191 @@
+---
+title: "Data Analysis"
+author: "Rebecca Martinez"
+date: "2025-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,     # hide code
+  warning = FALSE,  # hide warnings
+  message = FALSE,  # hide messages
+  error = FALSE     # hide errors
+)
+
+#install.packages("tidyverse")
+#install.packages("gt")
+#install.packages("flextable")
+#intall.packages("janitor")
+#install.packages("cowplot")
+library(tidyverse)
+library(janitor) #clean data 
+library(gt)
+library(flextable)
+library(cowplot) # plots into objects, insert objects to make grid
+library(rstatix) # data analysis
+library(car)
+```
+
+```{r data}
+penetrometer_raw <- read_csv("data_raw/wide_penetrometer.csv") 
+
+penetrometer_clean <- clean_names(penetrometer_raw) |> 
+  select(-pd_blows_m, -notes, -average_number_blows, -face_distance_m)
+
+```
+
+
+
+
+## Methods and Measurments
+
+The drop cone method measures the depth of penetration resulting from a cone of fixed mass being dropped from a standard height. The hammer-type penetrometers use a slide hammer of fixed mass and drop height to apply consistent kinetic energy with each blow. Either the number of blows required to penetrate a specified depth, or the depth of penetration per blow are measured in this method.
+
+Soil penetration resistance \(R_s\) is defined as the work done by the soil divided by the distance the penetrometer travels:
+
+\[
+R_s = \frac{W_s}{P_d}
+\]
+
+where \(R_s\) is the soil resistance (N), \(W_s\) is the work done by the soil (J), and \(P_d\) is the distance the penetrometer travels (m).
+
+
+The kinetic energy of a hammer of mass \(m = 4.58 \text{ kg}\) falling a distance \(x = 0.45 \text{ m}\) is:
+
+\[
+v = \sqrt{v_0^2 + 2 a x} = \sqrt{0 + 2 (9.8)(0.45)} = 2.97 \text{ m/s}
+\]
+
+\[
+KE = \frac{1}{2} m v^2 = \frac{1}{2} (4.58)(2.97)^2 = 20.20 \text{ J}
+\]
+
+
+
+Then the soil resistance is calculated as:
+
+\[
+R_s = \frac{W_s}{P_d} = \frac{KE}{P_d}
+\]
+
+
+\[
+P_d = \frac{blows}{m} = \frac{0.10m}{blows}
+\]
+
+So: 
+
+\[
+R_s = \frac{W_s}{P_d} = \frac{0.10}{blows} = \frac{\mult{W_s}{0.10}}{blows}
+\]
+
+
+
+```{r}
+
+```{r}
+# long format
+
+ df1<- penetrometer_clean |>
+  rename_with(
+    ~ str_replace(.x, "blows_(\\d+)_cm", function(m) {
+      num <- as.numeric(sub("blows_(\\d+)_cm", "\\1", m))
+      paste0(num/100, "_m")
+    }),
+    starts_with("blows_")
+  )
+
+pen_data <- df1 |>
+  pivot_longer(
+    cols = ends_with("_m"),
+    names_to = "depth_m",
+    values_to = "blows"
+  )
+
+clean_data <- pen_data |> 
+  mutate(
+    depth_m = str_remove(depth_m, "_m"),   # remove the text
+    depth_m = as.numeric(depth_m),
+    pit_group = case_when(
+      str_detect(pit, "gusty_dell") ~ "GDS",
+      str_detect(pit, "windmill_tau") ~ "TAU",
+      str_detect(pit, "windmill_CP1") ~ "WML",
+      TRUE ~ pit 
+  )) |> 
+  select(location, depth_m, blows, pit_group, -pit) 
+
+
+```
+
+
+
+```{r add pd and rs}
+
+# Add Pd and Rs
+resist_data <- clean_data |>
+  mutate(
+    Pd = 0.10/ blows,      # distance traveled per blow  
+    Rs = 20.20 / Pd      # work per depth increment
+  )
+
+data_resist <- resist_data |>
+  mutate(depth_m = factor(depth_m),
+         location = factor(location),
+         pit = factor(pit_group)
+         )
+
+```
+
+
+
+
+```{r}
+gg <- data_resist |> 
+  group_by(pit, location) |> 
+ggplot(
+       aes(sample = Rs)) +
+  geom_qq_line(color = "orange") +
+  geom_qq(alpha = 0.7) +
+  facet_wrap(~ pit, scales = "free") +
+  theme_classic(base_size = 14) +
+  labs(
+    title = "QQ Plots of Penetration Resistance (Rs) by Site",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  )
+summary(gg)
+
+```
+
+
+
+
+```{r anova}
+
+
+
+welch_rs <- t2way(Rs ~ location + depth_m, data = data_resist)
+welch_rs
+
+summary(welch_rs)
+
+
+post_location_by_depth <- lincon(
+  Rs ~ location : depth_m,
+  data = data_resist,
+  tr = 0.2
+)
+
+post_location_by_depth
+
+
+
+
+```

@@ -2,7 +2,9 @@
 title: "Rock Nitrogen"
 author: "Rebecca Martinez"
 date: "November 14, 2025"
-output: 
+output:
+  pdf_document:
+    toc: true
   html_document:
     toc: true
 ---
@@ -32,22 +34,15 @@ library(cowplot) # plots into objects, insert objects to make grid
 ```{r data cleaning}
 
 # Load and clean data
-rock_nitrogen <- read_csv("data_raw/rock_samples_SIF_results.csv") %>%
+rock_nitrogen <- read_csv("data_raw/rock_samples_SIF_results.csv")  |> 
   clean_names()
 
-#KGA: Check out the changes I made with the GitHub comparison tool
-#KGA: #1 Im pretty sure that rather than `TRUE ~ NA_character_` you can just do `TRUE ~ NA`
-#KGA: #2 In regards to: sample_name = str_extract(sample_id, ".*(?=-[pn]-)")
-#KGA: To me this says that you are looking for a match to all characters, up to (but not including) -p- OR -n-
-#KGA: I have modified below for (what I think) is an easier version of this,, or at least I think it is easier to understand what's going on
-#KGA: str_extract(sample_id, "(.*)-[pn]-", group = 1)
-#KGA: that says "extract the following string from sample_id,, and only extract what is contained in group 1 (the string contained by the parentheses).
-rock_n_full <- rock_nitrogen %>%
+rock_n_full <- rock_nitrogen |> 
   mutate(across(where(is.character),
-                ~ str_squish(.) %>%
-                  str_replace_all(" ", "_") %>%
+                ~ str_squish(.)  |> 
+                  str_replace_all(" ", "_")  |> 
                   tolower()
-                )) %>%
+                )) |> 
   mutate(
     soaked = case_when(
       str_detect(sample_id, "-p-") ~ "yes",
@@ -58,7 +53,84 @@ rock_n_full <- rock_nitrogen %>%
     location = if_else(str_detect(sample_name, "p1"), "Sedgwick", "SCI")
   ) %>%
   filter(sample_name != "ref_soil")
-#KGA: also, i'm not sure what ref_soil is or why it is being removed. is this your control?
+
+
+
+
+# Riley's N sample 
+
+riley_rock_n <- read_csv(("data_raw/rileyh_n_data.csv"))
+
+riley_n_clean <- riley_rock_n |> 
+  rename(n_ppm = "nitrogen_ppm") |> 
+  mutate(across(where(is.character), ~ str_to_lower(.)),
+         location = "SCI",
+         sample_name = sample_id,
+         sample_name = str_replace(sample_id, "-[0-9]+$", ""))
+
+
+
+# removing non soaked samples
+
+n_rock_full <- rock_n_full |> 
+  filter(soaked != "no") 
+
+
+merged_n <- bind_rows(
+  riley_n_clean |> 
+    select(sample_id, rock_type, n_ppm, location, sample_name),
+  n_rock_full |>  
+    select(sample_id, rock_type, n_ppm, location, sample_name)
+) |>   
+  filter(sample_name != "sci-blue-schist") |> 
+  rename(rock_labels = rock_type)
+
+
+#new rock names column
+
+lithology <- c(
+  "gabbro_diorite" = "Gabbro–Diorite",
+  "jolla_viejo_formation_sandstone" = "Sandstone (Tjv)",
+  "jolla_viejo_formation" = "Sandstone (Tjv)",
+  "older_alluvium" = "Alluvium (Qoa)",
+  "vaqueros_formation_sandstone" = "Sandstone (Tvs)",
+  "vaqueros_formation_conglomerate" = "Conglomerate (Tvs)",
+  "monterey_formation" = "Mudstone/Shale (Tmo)",
+  "tuff" = "Tuff (Ttu)",
+  "cozy_dell_shale" = "Shale (Tcd)",
+  "rincon_shale" = "Shale (Trn)",
+  "greenstone" = "Greenstone (Jsv)",
+  "serpentine" = "Serpentinite (Jsp)",
+  "shale" = "Shale (Tr)",
+  "sci_schist" = "Schist"
+)
+
+#rock class column
+rock_class_map <- c(
+  "gabbro_diorite" = "Igneous",
+  "jolla_viejo_formation_sandstone" = "Sedimentary",
+  "jolla_viejo_formation" = "Sedimentary",
+  "older_alluvium" = "Sedimentary",
+  "vaqueros_formation_sandstone" = "Sedimentary",
+  "vaqueros_formation_conglomerate" = "Sedimentary",
+  "monterey_formation" = "Sedimentary",
+  "tuff" = "Sedimentary",
+  "cozy_dell_shale" = "Sedimentary",
+  "rincon_shale" = "Sedimentary",
+  "greenstone" = "Metamorphic",
+  "serpentine" = "Ultramafic",
+  "shale" = "Sedimentary",
+  "sci_schist" = "Metamorphic"
+)
+
+merged_n_full <- merged_n |> 
+  mutate(
+    lithology = recode(rock_labels, !!!lithology),
+    rock_class = recode(rock_labels, !!!rock_class_map)
+    
+)
+
+
 ```
 
 # Rock Nitrogen PPM from Santa Cruz Island and Sedgwick Reserves
@@ -223,6 +295,50 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
 
   
 ```
+Alternative:
+*Under Construction*
+```{r visual 4 cowplot}
+
+# cowplot version
+
+p <- ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
+  geom_col(position = "dodge") +
+    scale_fill_manual(
+    values = c("yes" = "steelblue", "no" = "orange"),
+    labels = c("yes" = "Peroxide Soaked", "no" = "Not Peroxide Soaked")
+  ) +
+  labs(
+    x = "Rock Type",
+    y = "Nitrogen (ppm)",
+    fill = "Pit"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+legend <- cowplot::get_legend(
+  p + theme(legend.position = "bottom")
+)
+
+p_nolegend <- p + theme(legend.position = "none")
+
+title <- cowplot::ggdraw() +
+  cowplot::draw_label(
+    "Nitrogen Concentrations by Rock Type",
+    fontface = "bold",
+    size = 16
+  )
+
+cowplot::plot_grid(
+  title,
+  p_nolegend,
+  legend,
+  ncol = 1,
+  rel_heights = c(0.1, 1, 0.1)
+)
+
+```
 
 
 ## Visualization 5: Boxplot of Nitrogen Values
@@ -230,30 +346,7 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
 This boxplot shows the distribution of nitrogen per rock type, separated by location.
 
 ```{r visual 5}
-# don't plot mean - boxplot shows mean, silly
-# Create rock_avg with rock_type included
-rock_avg <- rock_n_full %>%
-  mutate(
-    soaked = factor(
-      soaked,
-      levels = c("no", "yes"),
-      labels = c("Not Peroxide Soaked", "Peroxide Soaked")
-    )
-  ) %>%
-  group_by(rock_type, location, soaked) %>%   # include rock_type here
-  summarize(
-    avg_n_ppm = mean(n_ppm, na.rm = TRUE),
-    sd_n_ppm = sd(n_ppm, na.rm = TRUE),
-    n = n(),
-    .groups = "drop"
-  )
 
-# Pivot to wide format if needed
-rock_avg_wide <- rock_avg %>%
-  pivot_wider(
-    names_from = soaked,
-    values_from = avg_n_ppm
-  )
 
 # Boxplot of nitrogen by rock_type and soaked, faceted by location
 ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
@@ -274,50 +367,149 @@ ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
 # sandstone (Tv)
 # shale (Tcd)
 # sandstone (Tjv)
-
-```
-
-## Visualization 6
-
-Side-by-side bar plot using rock average
-
-```{r visual 6}
-
-ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
-  geom_col(position = position_dodge(width = 0.8)) +
-  scale_y_continuous(expand = c(0, 0)) +
+# 
+# 
+# 
+# 
+ggplot(merged_n, aes(x = rock_type, y = n_ppm, fill = location)) +
+  geom_boxplot() +
   labs(
     x = "Rock Type",
-    y = "Mean Nitrogen (ppm)",
-    fill = "Location"
-  ) +
-  scale_fill_manual(
-    values = c("Sedgwick" = "steelblue", "SCI" = "orange")
+    y = "Nitrogen (ppm)",
+    fill = NULL
   ) +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        
+  theme(
+    panel.background = element_rect(fill = "gray95", color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+#
+#
 ```
 
-## Visualization 7
 
-Boxplot by rock type, filled by location
+```{r boxplot, rock N by location} 
 
-```{r visual 7}
-ggplot(rock_avg, aes(x = rock_type, y = avg_n_ppm, fill = location)) +
-  geom_boxplot(position = position_dodge(width = 0.8), outlier.shape = 16, outlier.size = 2) +
+
+rock_labels <- c(
+  "cozy_dell_shale" = "Shale (Tcd)",
+  "jolla_viejo_formation" = "Sandstone (Tjv)",
+  "vaqueros_formation_sandstone" = "Sandstone (Tvs)",
+  "rincon_shale" = "Shale (Tr)",
+  "greenstone" = "Greenstone",
+  "serpentine" = "Serpentine",
+  "schist_from_conglomerate" = "Schist",
+  "shale" = "Shale"
+)
+
+
+ggplot(merged_n, aes(x = rock_type, y = n_ppm, color = location)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_fill_manual(
+    values = c(
+      "no"  = "#6A4C2A",
+      "yes" = "#E8DDC8"  
+    ),
+    labels = c(
+      "no"  = "Not Soaked",
+      "yes" = "Peroxide Soaked"
+         )
+  ) +
+  facet_wrap(~ location, scales = "free_x", labeller = labeller(location = c(
+    "SCI" = "Santa Cruz Island",
+    "Sedgwick" = "Sedgwick"
+  ))
+) +   # free x for each panel
+  scale_x_discrete(labels = rock_labels) +      #simplified names
   labs(
     x = "Rock Type",
-    y = "Mean Nitrogen (ppm)",
-    fill = "Location"
+    y = "Nitrogen (ppm)",
+    fill = NULL
   ) +
-  scale_fill_manual(
-    values = c("Sedgwick" = "steelblue", "SCI" = "orange")
+  theme_classic() +
+  theme(
+    panel.background = element_rect(color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
+```
+
+
+
+```{r}
+#not seperated by soaked or not
+
+
+
+ggplot(rock_n_full, aes(x = rock_type, y = n_ppm)) +
+  geom_boxplot(fill = "#C7B8A2", outliers = FALSE) +
+  facet_wrap(~ location, scales = "free_x", labeller = labeller(location = c(
+    "SCI" = "Santa Cruz Island",
+    "Sedgwick" = "Sedgwick"))
+    ) +   # free x for each panel
+  scale_x_discrete(labels = rock_labels) +      #simplified names
+  labs(
+    x = "Rock Type",
+    y = "Nitrogen (ppm)",
+    fill = NULL
   ) +
-  theme_test() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme_classic() +
+  theme(
+    panel.background = element_rect(color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
 
 
 ```
+
+
+
+```{r merged N}
+
+
+location_colors <- c(
+  "SCI" = "#386641",      # deep green
+  "Sedgwick" = "orange4"  # brown-orange
+)
+ 
+ggplot(merged_n_full, aes(x = lithology, y = n_ppm, fill =  rock_class )) +
+  geom_boxplot(position = position_dodge(width = 0.7))+
+  facet_wrap(~ location, scales = "free_x") +
+  labs(
+    x = "Lithology",
+    y = "Nitrogen (ppm)",
+    fill = "Location"
+  ) +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = c(0.2, 0.8),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
+ggplot(merged_n_full, aes(x = lithology, y = n_ppm, fill = location)) +
+  geom_boxplot(position = position_dodge(width = 0.7)) +
+   scale_fill_manual(values = location_colors,
+                    labels = c("SCI" = "Santa Cruz Island",
+                               "Sedgwick" = "Sedgwick")) +
+  labs(
+    x = "Lithology",
+    y = "Nitrogen (ppm)",
+    fill = "Location") +
+    theme_classic(base_size = 18)+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = c(0.2, 0.9),
+    strip.text = element_text(face = "bold", size = 12)
+  )
+
+
+```
+
+
 
 *Still a work in progress...*

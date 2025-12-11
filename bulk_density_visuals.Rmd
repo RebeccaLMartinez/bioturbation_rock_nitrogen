@@ -1,0 +1,83 @@
+---
+title: "Bulk Density"
+author: "Rebecca Martinez"
+date: "2025-12-07"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,     # hide code
+  warning = FALSE,  # hide warnings
+  message = FALSE,  # hide messages
+  error = FALSE     # hide errors
+)
+
+#install.packages("tidyverse")
+#install.packages("gt")
+#install.packages("flextable")
+#intall.packages("janitor")
+#install.packages("cowplot")
+library(tidyverse)
+library(janitor) #clean data 
+library(gt)
+library(flextable)
+library(cowplot) # plots into objects, insert objects to make grid
+
+```
+
+```{r data}
+
+bulk_density_data_raw <- read_csv("data_raw/soil_bd.csv") 
+head(bulk_density_data_raw)
+
+
+soil_bd <- bulk_density_data_raw |> 
+  select(location, pit, depth_0, depth_1, sample_id, moisture_content, ad_bulk_density, od_bulk_density)
+
+```
+
+
+```{r}
+
+
+bd_plot <- ggplot(soil_bd, 
+       aes(x = od_bulk_density,
+           y = depth_0,
+           color = location)) +
+  
+  geom_path(linewidth = 1) +
+  scale_y_reverse() +
+  
+  scale_color_manual(
+    name = "Location",
+    values = c(
+      "sedgwick" = "orange4",
+      "SCI" = "#386641"
+    )
+  ) +
+  
+  labs(
+    x = "Bulk Density (g/cm³)",
+    y = "Depth (cm)"
+  ) +
+  
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold", size = 14),
+    axis.text.y = element_text(face = "bold"),
+    axis.title = element_text(face = "bold"),
+    axis.text.x = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.position = "right",
+    panel.spacing = unit(1, "lines")
+  )
+         
+bd_plot
+```
+
+
+
+
+

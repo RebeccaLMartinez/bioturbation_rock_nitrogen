@@ -1,0 +1,114 @@
+---
+title: "Disturbances"
+author: "Rebecca Martinez"
+date: "2025-12-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,     # hide code
+  warning = FALSE,  # hide warnings
+  message = FALSE,  # hide messages
+  error = FALSE     # hide errors
+)
+
+#install.packages("tidyverse")
+#install.packages("gt")
+#install.packages("flextable")
+#intall.packages("janitor")
+#install.packages("cowplot")
+library(tidyverse)
+library(janitor) #clean data 
+library(gt)
+library(flextable)
+library(cowplot) # plots into objects, insert objects to make grid
+
+```
+
+```{r data}
+penetrometer_raw <- read_csv("data_raw/wide_penetrometer.csv") 
+
+penetrometer_clean <- clean_names(penetrometer_raw) |> 
+  select(-pd_blows_m, -notes, -average_number_blows, -face_distance_m)
+
+```
+
+
+```{r}
+# long format
+
+pen_clean <- penetrometer_clean |>
+  rename_with(
+    ~ str_replace(.x, "blows_(\\d+)_cm", function(m) {
+      num <- as.numeric(sub("blows_(\\d+)_cm", "\\1", m))
+      paste0(num/100, "_m")
+    }),
+    starts_with("blows_")
+  )
+
+pen_long <- pen_clean |>
+  pivot_longer(
+    cols = ends_with("_m"),
+    names_to = "depth_m",
+    values_to = "blows"
+  )
+
+clean_pen <- pen_long |> 
+  mutate(
+    depth_m = str_remove(depth_m, "_m"),   # remove the text
+    depth_m = as.numeric(depth_m)          # convert to number
+  ) |> 
+  select(-total_blows) 
+  
+clean_data <- clean_pen |>
+  mutate(
+    pit_group = case_when(
+      str_detect(pit, "CP1") ~ "CP1",
+      str_detect(pit, "tau") ~ "tau",
+      str_detect(pit, "gusty") ~ "gusty",
+      TRUE ~ "other"
+    )
+  )
+
+
+```
+
+```{r resistance calculation}
+
+resistance_pit <- resistance |>
+  group_by(pit, pen, location) |>
+  summarise(
+    avg_blow = mean(blows, na.rm = TRUE),
+    .groups  = "drop"
+  ) |>
+  mutate(
+    Pd = avg_blow / 0.10,       # blows per meter for the pit
+    Rs = 20.20 / Pd,            # one Rs value per pit
+    pit_group = recode(
+      pit,
+      "CP1"   = "WML",
+      "tau"   = "TAU",
+      "gusty" = "GDS"
+    )
+  )
+
+
+```
+```
+
+
+
+
+```{r}
+
+ggplot(penetrometer_clean, aes(x = ))
+
+
+```
+

@@ -1,0 +1,23 @@
+sample_id,rock_type,nitrogen_ug,mass_g,nitrogen_ppm
+GrSchist-1-1,SCI_Schist ,2.77,0.05895,46.98897371
+Wdg-1-1,Gabbro_diorite,2.95,0.05942,49.64658364
+Tjv-1-1,Jolla_Viejo_Formation_Sandstone,31.24,0.05981,522.3206822
+Tjv-2-1,Jolla_Viejo_Formation_Sandstone,32.74,0.05896,555.2917232
+Qoa-1-1,Older_Alluvium ,5.98,0.06076,98.42001317
+Tvs-S-1,Vaqueros_Formation_Sandstone,52.28,0.05938,880.4311216
+Tvs-C-1,Vaqueros_Formation_Conglomerate,19.74,0.05954,331.5418206
+GrSchist-2-1,SCI_Schist ,2.28,0.06023,37.85488959
+Wdg-2-1,Gabbro_diorite,4.22,0.05918,71.30787428
+MontSi-1-1,Monterey_Formation,4.89,0.05885,83.09260833
+Tuff-1-1,Tuff,4,0.06041,66.21420295
+Tcd-2-1,Cozy_Dell_Shale ,41.67,0.06058,687.8507758
+Tr-1-1,Rincon_Shale,15.43,0.05994,257.4240908
+Tr-2N-1,Rincon_Shale,13.22,0.0585,225.982906
+Tr-2N-2,Rincon_Shale,13.49,0.05994,225.0583917
+Tr-2N-3,Rincon_Shale,13.3,0.05961,223.1169267
+Tcd-1-1,Cozy_Dell_Shale,19.93,0.06025,330.7883817
+Tcd-1-2,Cozy_Dell_Shale,20.07,0.05882,341.2104726
+Tcd-1-3,Cozy_Dell_Shale,20.13,0.0598,336.6220736
+Tcd-3-1,Cozy_Dell_Shale,40.24,0.05888,683.423913
+Tcd-3-2,Cozy_Dell_Shale,39.89,0.05996,665.2768512
+Tcd-3-3,Cozy_Dell_Shale,40,0.05879,680.3878211

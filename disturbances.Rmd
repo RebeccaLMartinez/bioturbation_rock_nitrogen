@@ -1,0 +1,63 @@
+---
+title: "Distubances"
+author: "Rebecca Martinez"
+date: "2025-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Set global options for all chunks
+knitr::opts_chunk$set(
+  echo = FALSE,     # hide code
+  warning = FALSE,  # hide warnings
+  message = FALSE,  # hide messages
+  error = FALSE     # hide errors
+)
+
+#install.packages("tidyverse")
+#install.packages("gt")
+#install.packages("flextable")
+#intall.packages("janitor")
+#install.packages("cowplot")
+library(tidyverse)
+library(janitor) #clean data 
+library(gt)
+library(flextable)
+library(cowplot) # plots into objects, insert objects to make grid
+
+```
+
+```{r}
+
+disturbances <- read_csv("data_raw/disturbances.csv") 
+
+
+```
+
+```{r}
+
+ggplot(disturbances, aes(x = location, y = dist_per_m)) +
+  geom_boxplot(fill = c("#386641", "orange4")) +
+   scale_x_discrete(labels = c(
+    "SCI" = "Santa Cruz Island",
+    "Sedgwick" = "Sedgwick"
+  )) +
+  labs(
+    x = NULL,
+    y = "Disturbances per meter",
+    fill = "Location") +
+    theme_classic(base_size = 18)+
+  theme(
+    legend.position = "none",
+     axis.text.x  = element_text(face = "bold", 
+                                 size = 18,
+                                 vjust = -3),
+                                 axis.title.y = element_text(face = "bold",
+                                size = 18), 
+    plot.margin = margin(b = 20)
+  )
+
+
+
+```
+
