@@ -41,9 +41,11 @@ soil_bd <- bulk_density_data_raw |>
 
 ```{r}
 
-
-bd_plot <- ggplot(soil_bd, 
-       aes(x = od_bulk_density,
+soil_bd |>
+  mutate(location = recode(location,
+                           "SCI" = "Santa Cruz Island",
+                           "sedgwick" = "Sedgwick")) |> 
+ggplot(aes(x = od_bulk_density,
            y = depth_0,
            color = location)) +
   
@@ -53,8 +55,8 @@ bd_plot <- ggplot(soil_bd,
   scale_color_manual(
     name = "Location",
     values = c(
-      "sedgwick" = "orange4",
-      "SCI" = "#386641"
+      "Sedgwick" = "orange4",
+      "Santa Cruz Island" = "#386641"
     )
   ) +
   
@@ -73,8 +75,7 @@ bd_plot <- ggplot(soil_bd,
     legend.position = "right",
     panel.spacing = unit(1, "lines")
   )
-         
-bd_plot
+
 ```
 
 

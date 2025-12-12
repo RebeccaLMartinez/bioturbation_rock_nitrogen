@@ -133,8 +133,8 @@ clean_data <- clean_pen |>
 # Add Pd and Rs
 resistance <- clean_data |>
   mutate(
-    Pd = blows / 0.10,      # blows per meter  (your version: note this is actually inverse Pd, but OK)
-    Rs = 202.0 * blows      # resistance per depth increment
+    Pd = 0.10/ blows,      # blows per meter  
+    Rs = 20.20 / Pd      # work per depth increment
   )
 
 # Rs summary per pit × depth × location
@@ -171,14 +171,14 @@ pit_colors <- c(
 ```{r first Rs plot}
 
 ggplot(rs_summary,
-       aes(x = avg_Rs, y = depth_m, group = pit, color = pit)) +
+       aes(x = avg_Rs, y = depth_m, group = location, color = location)) +
   
   # --- RIBBON: min_Rs → max_Rs ---
   geom_ribbon(
     aes(
       xmin = min_Rs,
       xmax = max_Rs,
-      fill = pit
+      fill = location
     ),
     alpha = 0.45,
     color = NA
@@ -190,34 +190,7 @@ ggplot(rs_summary,
    # --- DEPTH GOES DOWNWARD ---
   scale_y_reverse() +
   
-  facet_wrap(
-    ~ location,
-    labeller = labeller(
-      location = c(
-        "Sedgwick" = "Sedgwick",
-        "SCI"      = "Santa Cruz Island"
-      )
-    )
-  ) +
-  
-  scale_color_manual(
-    name = "Pit",
-    values = c(
-      "WML" = "darkred",
-      "TAU" = "gold3",
-      "GDS" = "#386641"
-    )
-  ) +
-  scale_fill_manual(
-    name = "Pit",
-    values = c(
-      "WML" = "red4",
-      "TAU" = "gold3",
-      "GDS" = "#386641"
-    )
-  ) +
-  
-  labs(
+   labs(
     x = "Soil Resistance (N)",
     y = "Depth (m)"
   ) +

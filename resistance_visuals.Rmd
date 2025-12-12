@@ -98,17 +98,74 @@ resistance_pit <- resistance |>
     )
   )
 
-
 ```
-```
-
-
-
 
 ```{r}
 
-ggplot(penetrometer_clean, aes(x = ))
+
 
 
 ```
+
+```{r psi attempt}
+
+# Add Pd and Rs
+resistance <- clean_data |>
+  mutate(
+    Pd = 0.10/ blows,      # blows per meter  
+    Rs = 20.20 / Pd      # work per depth increment
+  )
+
+# Rs summary per pit × depth × location
+rs_summary <- resistance |>
+  mutate(depth_m = as.numeric(depth_m)) |>      # convert depth to numeric
+  group_by(location, depth_m) |>
+  summarise(
+    avg_Rs = mean(Rs, na.rm = TRUE),
+    min_Rs = min(Rs, na.rm = TRUE),
+    max_Rs = max(Rs, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  left_join(
+    resistance |> select(location) |> distinct(),
+    by = "location"
+  )
+
+```
+
+```{r}
+
+ggplot(rs_summary,
+       aes(x = avg_Rs, y = depth_m, group = location, color = location)) +
+  
+  geom_ribbon(
+    aes(
+      xmin = min_Rs,
+      xmax = max_Rs,
+      fill = location
+    ),
+    alpha = 0.35,
+    color = NA
+  ) +
+  
+  geom_path(linewidth = 1.3, alpha = 0.9) +
+  
+  scale_y_reverse() +
+  
+   labs(
+    x = "Soil Resistance (N)",
+    y = "Depth (m)"
+  ) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.background = element_rect(color = "black", fill = NA),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 13)
+  )
+
+
+
+```
+
 

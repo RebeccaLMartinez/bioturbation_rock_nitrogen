@@ -24,13 +24,17 @@ knitr::opts_chunk$set(
 #install.packages("flextable")
 #intall.packages("janitor")
 #install.packages("cowplot")
+#install.packages("WRS2")
 library(tidyverse)
 library(janitor) #clean data 
 library(gt)
 library(flextable)
 library(cowplot) # plots into objects, insert objects to make grid
 library(rstatix) # data analysis
-library(car)
+library(car) # for levenes
+library(WRS2) # welchs 2 way anova
+library(emmeans) # for bonferroni
+
 ```
 
 ```{r data}
@@ -90,10 +94,9 @@ R_s = \frac{W_s}{P_d} = \frac{0.10}{blows} = \frac{\mult{W_s}{0.10}}{blows}
 
 ```{r}
 
-```{r}
 # long format
 
- df1<- penetrometer_clean |>
+ df1 <- penetrometer_clean |>
   rename_with(
     ~ str_replace(.x, "blows_(\\d+)_cm", function(m) {
       num <- as.numeric(sub("blows_(\\d+)_cm", "\\1", m))
@@ -143,49 +146,241 @@ data_resist <- resist_data |>
 
 ```
 
+# Statistical Analysis
 
 
-
+1. Check variance homogeneity with a levene test.
 ```{r}
-gg <- data_resist |> 
-  group_by(pit, location) |> 
-ggplot(
-       aes(sample = Rs)) +
-  geom_qq_line(color = "orange") +
-  geom_qq(alpha = 0.7) +
-  facet_wrap(~ pit, scales = "free") +
-  theme_classic(base_size = 14) +
-  labs(
-    title = "QQ Plots of Penetration Resistance (Rs) by Site",
-    x = "Theoretical Quantiles",
-    y = "Sample Quantiles"
-  )
-summary(gg)
 
+# Check variance homogeneity
+rs_lev <- leveneTest(Rs ~ location * depth_m, data = data_resist)
+summary(rs_lev)
+rs_lev
 ```
 
+*If variances are NOT equal →  use Welch 2-way*
+*If variances ARE equal → use base ANOVA.*
 
 
+F = 2.2976  
+p = 0.004211
 
-```{r anova}
+Because p < 0.05, the assumption of homogeneity of variance is violated.
 
 
+2. Analyze  Welch 2-Way ANOVA
+
+```{r welch anova}
 
 welch_rs <- t2way(Rs ~ location + depth_m, data = data_resist)
 welch_rs
 
-summary(welch_rs)
+
+```
+
+- Strong difference in Rs between Sedgwick vs SCI
+- Rs differs massively across depths
+- The pattern of Rs across depth is different at the two locations.
 
 
-post_location_by_depth <- lincon(
-  Rs ~ location : depth_m,
-  data = data_resist,
-  tr = 0.2
-)
+3. Run Post-Hoc Comparisons
 
-post_location_by_depth
+```{r}
+gh_loc <- data_resist |> 
+  games_howell_test(Rs ~ location)
 
+# Depth post-hoc
+gh_depth <- data_resist |> 
+  games_howell_test(Rs ~ depth_m)
+
+as_flextable(gh_depth)
+
+
+```
+
+
+
+```{r}
+
+rs_summary <- resist_data |> 
+  rename(pit = pit_group) |> 
+  mutate(
+    depth_cm = as.numeric(depth_m) * 100   # correct numeric conversion
+  ) |>     
+  group_by(location, depth_cm) |>                              # correct grouping variable
+  summarise(
+    avg_Rs = mean(Rs, na.rm = TRUE),
+    min_Rs = min(Rs, na.rm = TRUE),
+    max_Rs = max(Rs, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+0.1*100
 
 
 
 ```
+
+
+```{r}
+
+summ_rs <- resist_data |> 
+  mutate(depth_cm = 100 * depth_m,
+         as.numeric(depth_cm),
+         as.numeric(Rs))
+ 
+
+rs_loc_summary <-summ_rs |>
+  group_by(depth_cm, location) |>
+  summarise(
+    avg_Rs = mean(Rs, na.rm = TRUE),
+    min_Rs = min(Rs, na.rm = TRUE),
+    max_Rs = max(Rs, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
+ggplot(rs_loc_summary,
+       aes(x = avg_Rs,
+           y = depth_cm,
+           color = location,
+           group = location)) +
+  
+  # Ribbon showing variability (min–max)
+  geom_ribbon(
+    aes(xmin = min_Rs, xmax = max_Rs, fill = location),
+    alpha = 0.30,
+    color = NA
+  ) +
+  
+  geom_path(linewidth = 1.3) +
+  
+  # Depth increases downward
+  scale_y_reverse(
+    expand = expansion(mult = c(0, 0)),
+    limits = c(100, 10),
+    breaks = seq(20, 100, 20)
+  ) +
+  
+  scale_x_continuous(
+    expand = expansion(mult = c(0, 0))
+  ) +
+  
+  # COLORS for lines + legend labels
+  scale_color_manual(
+    values = c("Sedgwick" = "orange4",
+               "SCI" = "#386641"),
+    labels = c("Sedgwick" = "Sedgwick",
+               "SCI" = "Santa Cruz Island"),
+    name = "Location"
+  ) +
+  
+  # COLORS for ribbon fill (must use original factor names)
+  scale_fill_manual(
+    values = c("Sedgwick" = "orange4",
+               "SCI" = "#386641"),
+    guide = "none"
+  ) +
+  
+  labs(
+    x = "Soil Penetrometer Resistance (N)",
+    y = "Depth (cm)"
+  ) +
+  
+  theme_classic(base_size = 16) +
+  theme(
+    axis.text.x   = element_text(angle = 45, hjust = 1),
+    axis.text     = element_text(face = "bold"),
+    axis.title    = element_text(face = "bold"),
+    axis.title.x = element_text(vjust = -3, margin = margin(b = 10)), 
+    legend.position = c(0.85, 0.75),
+    legend.title  = element_blank()
+  )
+
+
+```
+
+
+Calculating MPa using methods from Vaz et al
+https://doi.org/10.1016/j.still.2022.105373
+
+```{r}
+
+# cone geometry: 20.3 mm diameter
+cone_d_m  <- 20.3 / 1000                     # m
+cone_area <- pi * (cone_d_m / 2)^2           # m^2
+
+# Compute MPa and correct depth handling
+mpa_data <- resist_data |>
+  mutate(
+    depth_m  = as.numeric(as.character(depth_m)),   # convert factor → numeric
+    depth_cm = depth_m * 100,                       # now safe
+    Rs_MPa   = (Rs / cone_area) / 1e6               # N/m2 → MPa
+  )
+
+# Summary by depth × location
+mpa_loc_summary <- mpa_data |>
+  group_by(location, depth_cm) |>
+  summarise(
+    avg_MPa = mean(Rs_MPa, na.rm = TRUE),
+    min_MPa = min(Rs_MPa, na.rm = TRUE),
+    max_MPa = max(Rs_MPa, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(mpa_loc_summary,
+       aes(x = avg_MPa,
+           y = depth_cm,
+           color = location,
+           group = location)) +
+  
+  geom_ribbon(
+    aes(xmin = min_MPa, xmax = max_MPa, fill = location),
+    alpha = 0.30,
+    color = NA
+  ) +
+  
+  geom_path(linewidth = 1.3) +
+  
+  scale_y_reverse(
+    expand = expansion(mult = c(0, 0.05)),
+    breaks = seq(0, 100, by = 20)
+  ) +
+  
+  scale_color_manual(
+    values = c("Sedgwick" = "orange4",
+               "SCI"      = "#386641"),
+    labels = c("Sedgwick", "Santa Cruz Island"),
+    name   = "Location"
+  ) +
+  
+  scale_fill_manual(
+    values = c("Sedgwick" = "orange4",
+               "SCI"      = "#386641"),
+    guide = "none"
+  ) +
+  
+  labs(
+    x = "Dynamic Penetration Resistance (MPa)",
+    y = "Depth (cm)"
+  ) +
+  
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x   = element_text(angle = 45, hjust = 1),
+    axis.text     = element_text(face = "bold"),
+    axis.title    = element_text(face = "bold"),
+    legend.title  = element_text(face = "bold")
+  )
+
+
+
+```
+
+
+
+
+
+
+
