@@ -38,25 +38,59 @@ disturbances <- read_csv("data_raw/disturbances.csv")
 
 ggplot(disturbances, aes(x = location, y = dist_per_m)) +
   geom_boxplot(fill = c("#386641", "orange4")) +
-   scale_x_discrete(labels = c(
+  coord_cartesian(ylim = c(0, NA)) +   # <-- force visible axis to start at 0
+  scale_x_discrete(labels = c(
     "SCI" = "Santa Cruz Island",
     "Sedgwick" = "Sedgwick"
   )) +
   labs(
     x = NULL,
-    y = "Disturbances per meter",
-    fill = "Location") +
-    theme_classic(base_size = 18)+
+    y = "Mammalian Surface Disturbances per meter",
+    fill = "Location"
+  ) +
+  theme_classic(base_size = 18) +
   theme(
     legend.position = "none",
-     axis.text.x  = element_text(face = "bold", 
-                                 size = 18,
-                                 vjust = -3),
-                                 axis.title.y = element_text(face = "bold",
-                                size = 18), 
+    axis.text.x = element_text(face = "bold", color = "black", size = 16, vjust = -3),
+    axis.title.y = element_text(face = "bold", size = 16, margin = margin(r = 15)),
     plot.margin = margin(b = 20)
   )
 
+
+```
+
+
+```{r}
+
+dist_plot <- disturbances %>%
+  mutate(dist_per_m = as.numeric(dist_per_m)) %>%
+  filter(is.finite(dist_per_m))
+
+ymax <- max(dist_plot$dist_per_m, na.rm = TRUE)
+
+ggplot(dist_plot, aes(x = location, y = dist_per_m)) +
+  geom_boxplot(fill = c("#386641", "orange4")) +
+  scale_y_continuous(
+    limits = c(0, ymax * 1.0),
+    expand = expansion(mult = c(0, 0.02)),
+    breaks = scales::pretty_breaks(),
+    labels = function(x) ifelse(x == 0, "", x)
+  ) +
+  scale_x_discrete(labels = c(
+    "SCI" = "Santa Cruz Island",
+    "Sedgwick" = "Sedgwick"
+  )) +
+  labs(
+    x = NULL,
+    y = "Mammalian Surface Disturbances (m⁻¹)"
+  ) +
+  theme_classic(base_size = 18) +
+  theme(
+    legend.position = "none",
+    axis.text.x  = element_text(face = "bold", color = "black", size = 16, vjust = -3),
+    axis.title.y = element_text(face = "bold", size = 16, margin = margin(r = 15)),
+    plot.margin = margin(b = 20)
+  )
 
 
 ```

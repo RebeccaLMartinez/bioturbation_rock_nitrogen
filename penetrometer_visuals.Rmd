@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 #install.packages("tidyverse")
 #install.packages("gt")
 #install.packages("flextable")
-#intall.packages("janitor")
+#install.packages("janitor")
 #install.packages("cowplot")
 library(tidyverse)
 library(janitor) #clean data 

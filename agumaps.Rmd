@@ -1,0 +1,724 @@
+---
+title: "Map"
+author: "Rebecca Martinez"
+date: "2025-12-17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+
+install.packages("tibble")
+install.packages("tidyverse")
+install.packages("maps")
+install.packages("ggspatial")
+install.packages("geodata")
+install.packages("terra")
+install.packages("sf")
+install.packages("ggmap")
+install.packages("prettymapr")
+install.packages("patchwork")
+install.packages("cowplot")
+install.packages("tigris")
+install.packages("ggdraw")
+install.packages("ra")
+
+install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
+                                   "https://cloud.r-project.org"))
+
+
+library(raster)
+library(tmap) 
+library(tigris)
+library(patchwork)
+library(terra)
+library(ggspatial)
+library(tidyverse)
+library(sf)
+library(maps)
+library(geodata)
+library(ggmap)
+library(prettymapr)
+library(cowplot)
+
+options(tigris_use_cache = TRUE)
+
+```
+
+
+```{r basic map}
+
+tmap_mode("plot")
+
+# --- boundaries ---
+states <- states(cb = TRUE, resolution = "20m", year = 2022)
+california <- states[states$STUSPS == "CA", ]
+
+# --- sites ---
+sites_df <- data.frame(
+  site = c("Sedgwick Reserve", "Santa Cruz Island Reserve"),
+  lon  = c(-120.04, -119.73),
+  lat  = c(34.70,  34.00)
+)
+
+sites_sf <- st_as_sf(sites_df, coords = c("lon", "lat"), crs = 4326)
+
+# --- main CA map ---
+ca_map <-
+  tm_shape(california) +
+  tm_borders(lwd = 1.2) +
+
+  tm_shape(sites_sf) +
+  tm_symbols(
+    shape  = "site",
+    shapes = c(21, 24),   # circle + triangle (filled shapes)
+    size   = 0.8
+  ) +
+
+  tm_scale_bar(position = c("left", "bottom"), text.size = 0.7) +
+
+  tm_layout(
+    frame = FALSE,
+    legend.position = c("center", "bottom")
+  )
+
+# --- mini USA locator (CA bolded) ---
+usa_locator <-
+  tm_shape(states) +
+  tm_fill(col = "gray90") +
+  tm_borders(col = "white", lwd = 0.3) +
+
+  tm_shape(california) +
+  tm_fill(col = "gray40") +
+  tm_borders(col = "black", lwd = 1.2) +
+
+  tm_layout(frame = FALSE)
+
+
+if (packageVersion("tmap") >= "4.0.0") {
+
+  final_map <- ca_map +
+    tm_inset(
+      usa_locator,
+      width = 0.35, height = 0.35,
+      position = c("left", "top")
+    )
+
+} else {
+
+  library(grid)
+
+  final_map <- tmap_arrange(
+    ca_map,
+    insets_tm = list(usa_locator),
+    insets_vp = list(
+      viewport(x = 0.18, y = 0.86, width = 0.35, height = 0.35, just = c("left", "top"))
+    )
+  )
+
+}
+
+final_map
+
+
+```
+
+
+
+
+
+```{r}
+
+ggplot() +
+  geom_raster(
+    data = as.data.frame(dem_ca, xy = TRUE),
+    aes(x = x, y = y, fill = elevation),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(
+    low = "white",
+    high = "gray60",
+    guide = "none"
+  ) +
+  geom_sf(
+    data = california,
+    fill = NA,
+    color = "gray60",
+    linewidth = 0.4
+  ) +
+  geom_sf(
+    data = sites_sf,
+    shape = 21,
+    size = 4,
+    fill = "black"
+  ) +
+  geom_sf(
+    data = california,
+    geom = "text",
+    aes(label = "California"),
+    angle = -90,
+    size = 4.5,
+    color = "gray30",
+    fontface = "italic"
+  ) +
+  annotation_scale(
+    location = "bl",
+    width_hint = 0.2
+  ) +
+  labs(title = "Study Site Locations") +
+  theme_void(base_size = 12)
+
+
+
+```
+
+
+
+```{r}
+
+ggplot() +
+  geom_sf(data = california, fill = "palegreen", color = "gray60") +
+  geom_sf(
+    data = sites_sf,
+    aes(shape = site),
+    size = 4,
+    color = "black"
+  ) +
+   geom_sf_text(
+    data = california,
+    label = "California",
+    angle = -55,
+    size = 4.5,
+    color = "gray30",
+    fontface = "italic"
+   ) +
+   annotation_scale(
+    location = "bl",
+    width_hint = 0.2
+  ) +
+  theme_void(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+
+```
+
+
+```{r}
+
+ggplot() +
+  annotation_map_tile(
+    type = "osm",
+    zoom = 6
+  ) +
+  geom_sf(
+    data = california,
+    fill = NA,
+    color = "gray40",
+    linewidth = 0.6
+  ) +
+  geom_sf(
+    data = sites_sf,
+    shape = 21,
+    size = 3,
+    fill = "black",
+    color = "black"
+  ) +
+  annotation_scale(location = "bl", width_hint = 0.2) +
+  theme_void(base_size = 12)
+
+```
+
+
+```{r}
+
+
+ 
+
+ggplot() +
+  # --- US background ---
+  geom_sf(
+    data = states,
+    fill = "gray80",
+    color = "white",
+    linewidth = 0.2
+  ) +
+
+  # --- California highlight ---
+  geom_sf(
+    data = california,
+    fill = "white",
+    color = "black",
+    linewidth = 0.6,
+    alpha = 0.2
+  ) +
+
+  # --- Sites ---
+  geom_sf(
+    data = sites_sf,
+    aes(shape = site),
+    size = 2.5,
+    color = "black"
+  ) +
+
+  # --- California label ---
+  annotate(
+    "text",
+    x = -120,
+    y = 37.5,
+    label = "California",
+    angle = -55,
+    size = 3.5,
+    color = "gray30",
+    fontface = "italic"
+  ) +
+
+  # --- Scale bar ---
+  annotation_scale(
+    location = "bl",
+    width_hint = .1
+  ) +
+
+  theme_void(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+
+```
+
+```{r}
+
+
+# static plotting
+options(tigris_use_cache = TRUE)
+tmap_mode("plot")
+
+# state boundaries
+states <- states(cb = TRUE, resolution = "20m", year = 2022)
+
+# lower 48 only
+states48 <- states[!states$STUSPS %in% c("AK", "HI"), ]
+
+# California
+california <- states48[states48$STUSPS == "CA", ]
+
+# site colors (MUST match site names exactly)
+site_cols <- c(
+  "Santa Cruz Island" = "#386641",  # deep green
+  "Sedgwick Reserve"  = "orange4"   # brown-orange
+)
+
+# site shapes (distinct but simple)
+site_shapes <- c(
+  "Santa Cruz Island" = 21,  # filled circle
+  "Sedgwick Reserve"  = 24   # filled triangle
+)
+
+# plot
+tm_shape(states48) +
+  tm_fill(col = "gray92") +                 # US background
+  tm_borders(col = "white", lwd = 0.3) +
+
+  tm_shape(california) +
+  tm_fill(col = "gray85") +                 # subtle CA fill
+  tm_borders(col = "black", lwd = 1.3) +    # bold CA outline
+
+  tm_shape(sites_sf) +
+  tm_symbols(
+    fill = "site",
+    shape = "site",
+    fill.scale = tm_scale(values = site_cols),
+    shape.scale = tm_scale(values = site_shapes),
+    col = "black",
+    size = 0.5
+  ) +
+   tm_view(bbox = ca_bbox) +
+
+  # --- scale bar & north arrow ---
+  tm_scalebar(position = c("left", "bottom"), text.size = 0.7) +
+  tm_compass(
+    type = "arrow",
+    position = c("right", "top"),
+    size = 2
+  ) +
+
+  tm_layout(
+    frame = FALSE,
+    legend.position = c("center", "bottom"),
+    legend.title.size = 0.9,
+    legend.text.size = 0.8
+  )
+
+```
+
+
+
+
+```{r}
+# static plotting
+options(tigris_use_cache = TRUE)
+tmap_mode("plot")
+
+# state boundaries
+states <- states(cb = TRUE, resolution = "20m", year = 2022)
+
+# lower 48 only
+states48 <- states[!states$STUSPS %in% c("AK", "HI"), ]
+
+# California
+california <- states48[states48$STUSPS == "CA", ]
+
+# California bbox (for zoom effect)
+ca_bbox <- st_bbox(california)
+
+# site colors (names must match exactly)
+site_cols <- c(
+  "Santa Cruz Island" = "#386641",
+  "Sedgwick Reserve"  = "orange4"
+)
+
+# site shapes
+site_shapes <- c(
+  "Santa Cruz Island" = 21,
+  "Sedgwick Reserve"  = 24
+)
+
+tm_shape(states48) +
+  tm_fill(col = "gray92") +
+  tm_borders(col = "white", lwd = 0.3) +
+
+  tm_shape(california) +
+  tm_fill(col = "gray85") +
+  tm_borders(col = "black", lwd = 1.3) +
+
+  tm_shape(sites_sf) +
+   tm_symbols(
+    fill = "site",
+    shape = "site",
+    fill.scale = tm_scale(values = site_cols),
+    shape.scale = tm_scale(values = site_shapes),
+    col = "black",
+    size = 0.5,
+    shape.legend = tm_legend_hide()   # <- suppress second legend
+  ) +
+
+  # zoom to California
+  tm_view(bbox = ca_bbox + c(-15, -10, 20, 10)) +
+
+  # scale bar & north arrow
+  tm_scalebar(position = c("left", "bottom"), text.size = 0.7) +
+  tm_compass(
+    type = "arrow",
+    position = c("right", "top"),
+    size = 2
+  ) +
+
+  tm_layout(
+    frame = FALSE,
+    legend.position = c("center", "bottom"),
+    legend.title.show = FALSE    # <- no legend title
+  )
+
+
+```
+
+
+
+
+
+```{r}
+
+
+options(tigris_use_cache = TRUE)
+tmap_mode("plot")
+
+# state boundaries
+states <- states(cb = TRUE, resolution = "20m", year = 2022)
+
+# contiguous US only
+states48 <- states[!states$STUSPS %in% c("AK", "HI"), ]
+
+# California
+california <- states48[states48$STUSPS == "CA", ]
+
+# site colors (exact name match)
+site_cols <- c(
+  "Santa Cruz Island" = "#386641",
+  "Sedgwick Reserve"  = "orange4"
+)
+
+# site shapes
+site_shapes <- c(
+  "Santa Cruz Island" = 21,
+  "Sedgwick Reserve"  = 24
+)
+
+tm_shape(states48) +
+  tm_fill(col = "gray92") +
+  tm_borders(col = "white", lwd = 0.3) +
+
+  tm_shape(california) +
+  tm_fill(col = "gray85") +
+  tm_borders(col = "black", lwd = 1.3) +
+
+  tm_shape(sites_sf) +
+  tm_symbols(
+    fill = "site",
+    shape = "site",
+    fill.scale  = tm_scale(values = site_cols),
+    shape.scale = tm_scale(values = site_shapes),
+    size = 0.6,
+    legend.shape.show = FALSE
+  ) +
+
+  tm_scale_bar(position = c("left", "bottom"), text.size = 0.7) +
+  tm_compass(type = "arrow", position = c("right", "top"), size = 2) +
+
+  tm_layout(
+    frame = FALSE,
+    legend.position = c("center", "bottom"),
+    legend.title.show = FALSE
+  )
+
+```
+
+
+
+```{r}
+
+options(tigris_use_cache = TRUE)
+
+# states
+states_sf <- states(cb = TRUE, resolution = "20m", year = 2022)
+states48_sf <- states_sf[!states_sf$STUSPS %in% c("AK", "HI"), ]
+california_sf <- states48_sf[states48_sf$STUSPS == "CA", ]
+
+# convert to terra
+states48 <- vect(states48_sf)
+california <- vect(california_sf)
+sites <- vect(c("Sedgwick Reserve", "Santa Cruz Island Reserve")),
+
+site_cols <- c(
+  "Santa Cruz Island" = "#386641",
+  "Sedgwick Reserve"  = "orange4"
+)
+
+site_pch <- c(
+  "Santa Cruz Island" = 21,  # filled circle
+  "Sedgwick Reserve"  = 24   # filled triangle
+)
+
+
+# open plotting window
+plot(states48,
+     col = "gray92",
+     border = "white",
+     lwd = 0.5)
+
+# emphasize California
+plot(california,
+     col = "gray85",
+     border = "black",
+     lwd = 2,
+     add = TRUE)
+
+# plot sites (loop keeps control explicit)
+for (i in seq_len(nrow(sites))) {
+  s <- sites[i]
+  nm <- s$site
+  points(
+    geom(s)[,1],
+    geom(s)[,2],
+    pch = site_pch[nm],
+    bg  = site_cols[nm],
+    col = "black",
+    cex = 1.2
+  )
+}
+
+# scale bar (km)
+sbar(d = 500, below = "km", cex = 0.8)
+
+# north arrow
+north()
+
+
+legend(
+  "bottom",
+  legend = names(site_cols),
+  pt.bg = site_cols,
+  pch = site_pch,
+  bty = "n",
+  ncol = 2
+)
+
+
+```
+
+```{r}
+
+# cache census data
+options(tigris_use_cache = TRUE)
+
+# ----------------------------
+# 1. State boundaries
+# ----------------------------
+states <- states(cb = TRUE, resolution = "20m", year = 2022)
+
+# contiguous US only
+states48 <- states[!states$STUSPS %in% c("AK", "HI"), ]
+
+# California
+california <- states48[states48$STUSPS == "CA", ]
+
+# ----------------------------
+# 2. Site data (created here)
+# ----------------------------
+sites_df <- data.frame(
+  site = c(
+    "Santa Cruz Island Reserve",
+    "Sedgwick Reserve"
+  ),
+  lon = c(
+    -119.73,   # Santa Cruz Island Reserve
+    -120.04    # Sedgwick Reserve
+  ),
+  lat = c(
+    34.00,
+    34.70
+  )
+)
+
+# convert to sf using SAME CRS as states (important)
+sites_sf <- st_as_sf(
+  sites_df,
+  coords = c("lon", "lat"),
+  crs = st_crs(states48)
+)
+
+# ----------------------------
+# 3. Colors and shapes
+# ----------------------------
+site_cols <- c(
+  "Santa Cruz Island Reserve" = "#386641",
+  "Sedgwick Reserve"          = "orange4"
+)
+
+site_shapes <- c(
+  "Santa Cruz Island Reserve" = 21,  # filled circle
+  "Sedgwick Reserve"          = 24   # filled triangle
+)
+
+# ----------------------------
+# 4. Plot
+# ----------------------------
+ggplot() +
+
+  # US background
+  geom_sf(
+    data = states48,
+    fill = "gray82",
+    color = "white",
+    linewidth = 0.25
+  ) +
+
+  # California emphasis
+  geom_sf(
+    data = california,
+    fill = "white",
+    color = "black",
+    linewidth = 0.6
+  ) +
+
+  # Sites
+ geom_sf(
+  data = sites_sf,
+  aes(shape = site),
+  fill = NA,
+  color = "black",
+  size = 2.9,
+  stroke = 0.8
+) +
+# filled layer
+geom_sf(
+  data = sites_sf,
+  aes(fill = site, shape = site),
+  color = "black",
+  size = 2.9,
+  stroke = 0.8
+  ) +
+
+  # California label
+  annotate(
+    "text",
+    x = -120,
+    y = 37.5,
+    label = "California",
+    angle = -55,
+    size = 3.5,
+    color = "gray30",
+    fontface = "italic"
+  ) +
+
+  # Scales
+  scale_fill_manual(values = site_cols) +
+  scale_shape_manual(values = site_shapes) +
+
+  # Scale bar
+annotation_scale(
+  location = "bl",
+  width_hint = 0.03,
+  pad_x = unit(0.8, "cm"),
+  pad_y = unit(0.8, "cm"),
+  text_cex = 0.7
+) +
+
+# north arrow (just above scale bar)
+annotation_north_arrow(
+  location = "bl",
+  which_north = "true",
+  style = north_arrow_fancy_orienteering,
+  height = unit(0.9, "cm"),
+  width = unit(0.9, "cm"),
+  pad_x = unit(0.9, "cm"),
+  pad_y = unit(1.2, "cm")
+) +
+
+  # Map extent
+  coord_sf(
+    xlim = c(-128, -65), 
+    ylim = c(24, 50),
+    expand = FALSE
+  ) +
+
+  # Clean theme
+  theme_void(base_size = 12) +
+  theme(
+    legend.key.width = unit(1.5, "cm"),
+   legend.position = c(0.25,0.06),
+   legend.justification = c("bottom"),
+    legend.direction = "vertical", 
+    legend.box = "horizontal",
+    legend.title = element_blank()
+    )
+
+
+
+```
+
+
+
+
+
+                        
+                        

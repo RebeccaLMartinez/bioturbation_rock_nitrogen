@@ -42,15 +42,24 @@ soil_bd <- bulk_density_data_raw |>
 ```{r}
 
 soil_bd |>
-  mutate(location = recode(location,
-                           "SCI" = "Santa Cruz Island",
-                           "sedgwick" = "Sedgwick")) |> 
+  mutate(
+    location = tolower(as.character(location)),
+    location = dplyr::recode(
+      location,
+      "sci" = "Santa Cruz Island",
+      "sedgwick" = "Sedgwick",
+      .default = location
+    )) |> 
 ggplot(aes(x = od_bulk_density,
            y = depth_0,
            color = location)) +
   
   geom_path(linewidth = 1) +
-  scale_y_reverse() +
+  scale_y_reverse(
+     limits = c(103, 0),
+  breaks = seq(20, 100, 20),
+   expand = expansion(mult = c(0, 0)),
+    ) +
   
   scale_color_manual(
     name = "Location",
@@ -65,14 +74,14 @@ ggplot(aes(x = od_bulk_density,
     y = "Depth (cm)"
   ) +
   
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 18) +
   theme(
     strip.text = element_text(face = "bold", size = 14),
     axis.text.y = element_text(face = "bold"),
     axis.title = element_text(face = "bold"),
     axis.text.x = element_text(face = "bold"),
-    legend.title = element_text(face = "bold"),
-    legend.position = "right",
+    legend.title = element_blank(),
+    legend.position = c(0.85, 0.9),
     panel.spacing = unit(1, "lines")
   )
 
