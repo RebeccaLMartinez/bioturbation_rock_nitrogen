@@ -23,271 +23,109 @@ knitr::opts_chunk$set(
 #install.packages("flextable")
 #intall.packages("janitor")
 #install.packages("cowplot")
+#install.packages("paletteer")
+#install.packages("tidytext")
 library(tidyverse)
 library(janitor) #clean data 
 library(gt)
 library(flextable)
 library(cowplot) # plots into objects, insert objects to make grid
+library(paletteer) #color pallete!
+
+library(tidytext)
+
+
+
 
 ```
 
-```{r data cleaning}
 
-# Load and clean data
+```{r}
+
+#---- Load and Clean Data ----
+  
 rock_nitrogen <- read_csv("data_raw/rock_samples_SIF_results.csv")  |> 
   clean_names()
 
+#clean up names and remove reference soil
 rock_n_full <- rock_nitrogen |> 
+  rename(n_ug = n_mg) |> 
   mutate(across(where(is.character),
                 ~ str_squish(.)  |> 
                   str_replace_all(" ", "_")  |> 
                   tolower()
                 )) |> 
-  mutate(
-    soaked = case_when(
-      str_detect(sample_id, "-p-") ~ "yes",
-      str_detect(sample_id, "-n-") ~ "no",
-      TRUE ~ NA
+ mutate(
+    sample_name = str_remove(sample_id, "-[pn]-\\d+$"),
+    
+    location = if_else(
+      str_starts(sample_name, "trn|trw|brn"),
+      "sedgwick",
+      "SCI"
     ),
-    sample_name = str_extract(sample_id, "(.*)-[pn]-", group = 1),
-    location = if_else(str_detect(sample_name, "p1"), "Sedgwick", "SCI")
-  ) %>%
-  filter(sample_name != "ref_soil", sample_name != "sci-blue-schist", rock_type != "rincon_shale", sample_name != "brncp1")
+    
+    rock_type = case_when(
+      rock_type == "schist_from_conglomerate" ~ "blue_schist",
+      sample_name == "tvs-c" ~ "vaqueros_conglomerate",
+      TRUE ~ rock_type
+    )
+  ) |>
+  filter(rock_type != "ref_soil")
 
 
-  
+#fix rock type column
+
+rock_n <- rock_n_full |> 
+  rename(lithology = rock_type) |>
+  mutate(
+    rock_type = case_when(
+      str_detect(lithology, "_schist") ~ "blue_schist",
+      lithology == "jolla_viejo_formation" ~ "jolla_viejo_sandstone",
+      TRUE ~ lithology
+    )
+  )
+
+summer_rocks <- rock_n |> 
+  mutate(
+      sample_rock = case_when(
+      sample_name == "sci-blue-schist" ~ "blue_schist",
+      sample_name == "brncp1" ~ "siltstone",
+      sample_name == "trncp1" ~ "greenstone",
+      sample_name == "trwcp1-2" ~ "serpentine",
+      sample_name == "trwcp1-1" ~ "diorite",
+      sample_name == "trwcp1-3" ~ "shale",
+      sample_name == "trwcp1-4" ~ "basalt",
+      sample_name == "trwcp1-5" ~ "soft_seds",
+      sample_name %in% c("tcd-1","tcd-2","tcd-3") ~ "shale",
+      sample_name %in% c("tr-1","tr-2n") ~ "shale",
+      sample_name == "tjv-2" ~ "sandstone",
+      sample_name == "tjv-1" ~ "sandstone",
+      sample_name == "tvs-c" ~ "sandstone_conglomerate",
+      sample_name == "tvs-s" ~ "sandstone",
+      TRUE ~ NA_character_
+    ),
+    
+    geologic_unit = case_when(
+      sample_name == "sci-blue-schist" ~ "sc",
+      sample_name == "brncp1" ~ "Qpr",
+      sample_name %in% c("trncp1","trwcp1-1","trwcp1-2",
+                    "trwcp1-3","trwcp1-4","trwcp1-5") ~ "f_sp-db",
+      sample_name %in% c("tcd-1","tcd-2","tcd-3") ~ "Tcd",
+      sample_name %in% c("tr-1","tr-2n") ~ "Tr",
+      sample_name %in% c("tjv-1","tjv-2") ~ "Tjv",
+      sample_name %in% c("tvs-c","tvs-s") ~ "Tvs",
+      TRUE ~ NA_character_
+    )
+  ) |> 
+  select(sample_name, sample_rock, location, geologic_unit, n_ppm, n_ug)
 
 
 
 
-
-
-# Riley's N sample 
-
+# Load riley data
 riley_rock_n <- read_csv(("data_raw/rileyh_n_data.csv"))
 
-
-riley_n_clean <- riley_rock_n |> 
-  rename(n_ppm = "nitrogen_ppm") |> 
-  mutate(across(where(is.character), ~ str_to_lower(.)),
-         location = "SCI",
-         sample_name = sample_id,
-         base_sample = str_replace(sample_name, "-[0-9]+$", "") ) |> 
-          filter(rock_type != "rincon_shale")
-
-
-
-# removing non soaked samples
-
-n_rock_full <- rock_n_full |> 
-  filter(soaked != "no")
-  
-
-merged_n <- bind_rows(
-  riley_n_clean|> 
-    select(sample_id, rock_type, n_ppm, location, sample_name),
-  n_rock_full |>  
-    select(sample_id, rock_type, n_ppm, location, sample_name)
-) |>   
-  rename(rock_labels = rock_type)
-
-
-#new rock names column
-
-
-lithology <- c(
-  "gabbro_diorite"                   = "Gabbro–Diorite",
-  "jolla_viejo_formation_sandstone" = "Sandstone (Tjv)",
-  "jolla_viejo_formation"           = "Sandstone (Tjv)",
-  "older_alluvium"                  = "Alluvium (Qoa)",
-  "vaqueros_formation_sandstone"    = "Sandstone (Tvs)",
-  "vaqueros_formation_conglomerate" = "Conglomerate (Tvs)",
-  "monterey_formation"              = "Mudstone/Shale (Tmo)",
-  "tuff"                            = "Tuff (Ttu)",
-  "cozy_dell_shale"                 = "Shale (Tcd)",
-  "rincon_shale"                    = "Shale (Trn)",
-  "shale"                           = "Shale (Tr)",
-  "greenstone"                      = "Greenstone (Jsv)",
-  "serpentine"                      = "Serpentinite (Jsp)",
-  "sci_schist"                      = "Schist",
-  "schist_from_conglomerate"        = "Test Schist"
-)
-
-
-rock_class_map <- c(
-  "gabbro_diorite"                   = "Igneous",
-  "jolla_viejo_formation_sandstone" = "Sedimentary",
-  "jolla_viejo_formation"           = "Sedimentary",
-  "older_alluvium"                  = "Sedimentary",
-  "vaqueros_formation_sandstone"    = "Sedimentary",
-  "vaqueros_formation_conglomerate" = "Sedimentary",
-  "monterey_formation"              = "Sedimentary",
-  "tuff"                            = "Sedimentary",
-  "cozy_dell_shale"                 = "Sedimentary",
-  "rincon_shale"                    = "Sedimentary",
-  "shale"                           = "Sedimentary",
-  "greenstone"                      = "Metamorphic",
-  "serpentine"                      = "Ultramafic",
-  "sci_schist"                      = "Metamorphic",
-  "schist_from_conglomerate"        = "Metamorphic"
-)
-
-
-
-merged_n_full <- merged_n |> 
-  mutate(
-    lithology = recode(rock_labels, !!!lithology),
-    rock_class = recode(rock_labels, !!!rock_class_map))
-  
-
-
-```
-
-
-#
-
-
-## Boxplot of Nitrogen Values
-
-This boxplot shows the distribution of nitrogen per rock type, separated by location.
-
-```{r visual 5}
-
-
-# Boxplot of nitrogen by rock_type and soaked, faceted by location
-ggplot(rock_n_full, aes(x = rock_type, y = n_ppm, fill = soaked)) +
-  geom_boxplot() +
-  facet_wrap(~ location) +
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = NULL
-  ) +
-  theme_classic() +
-  theme(
-    panel.background = element_rect(fill = "gray95", color = "black"),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
-
-# simplified rock type with reference in parentheses:
-# sandstone (Tv)
-# shale (Tcd)
-# sandstone (Tjv)
-# 
-# 
-# 
-# 
-ggplot(merged_n, aes(x = rock_type, y = n_ppm, fill = location)) +
-  geom_boxplot() +
-  labs(
-    x = "Rock Type",
-    y = "Nitrogen (ppm)",
-    fill = NULL
-  ) +
-  theme_classic() +
-  theme(
-    panel.background = element_rect(fill = "gray95", color = "black"),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
-#
-#
-```
-
-
-
-```{r merged N}
-
-
-location_colors <- c(
-  "SCI" = "#386641",      # deep green
-  "Sedgwick" = "orange4"  # brown-orange
-)
- 
-ggplot(merged_n_full, aes(x = lithology, y = n_ppm, fill =  rock_class )) +
-  geom_boxplot(position = position_dodge(width = 0.7))+
-  facet_wrap(~ location, scales = "free_x") +
-  labs(
-    x = "Lithology",
-    y = "Nitrogen (ppm)",
-    fill = "Location"
-  ) +
-  theme_bw() +
-  theme(
-    panel.background = element_rect(color = "black"),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = c(0.2, 0.8),
-    strip.text = element_text(face = "bold", size = 12)
-  )
-
-ggplot(merged_n_full, aes(x = lithology, y = n_ppm, fill = location)) +
-  geom_boxplot(position = position_dodge(width = 0.7)) +
-   scale_fill_manual(values = location_colors,
-                    labels = c("SCI" = "Santa Cruz Island",
-                               "sedgwick" = "Sedgwick")) +
-  labs(
-    x = "Lithology",
-    y = "Nitrogen (ppm)",
-    fill = "Location") +
-    theme_classic(base_size = 16)+
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold"),
-    legend.position = c(0.2, 0.9),
-    strip.text = element_text(face = "bold", size = 10),
-    axis.title.x = element_blank(),
-    legend.title = element_blank()
-  )
-
-
-```
-
-
-Table
-
-```{r}
-
-
-lithology <- c(
-  "gabbro_diorite"                   = "Gabbro–Diorite",
-  "jolla_viejo_formation_sandstone" = "Sandstone (Tjv)",
-  "jolla_viejo_formation"           = "Sandstone (Tjv)",
-  "older_alluvium"                  = "Alluvium (Qoa)",
-  "vaqueros_formation_sandstone"    = "Sandstone (Tvs)",
-  "vaqueros_formation_conglomerate" = "Conglomerate (Tvs)",
-  "monterey_formation"              = "Mudstone/Shale (Tmo)",
-  "tuff"                            = "Tuff (Ttu)",
-  "cozy_dell_shale"                 = "Shale (Tcd)",
-  "rincon_shale"                    = "Shale (Trn)",
-  "shale"                           = "Shale (Tr)",
-  "greenstone"                      = "Greenstone (Jsv)",
-  "serpentine"                      = "Serpentinite (Jsp)",
-  "sci_schist"                      = "Schist",
-  "schist_from_conglomerate"        = "Test Schist"
-)
-
-
-rock_class_map <- c(
-  "gabbro_diorite"                   = "Igneous",
-  "jolla_viejo_formation_sandstone" = "Sedimentary",
-  "jolla_viejo_formation"           = "Sedimentary",
-  "older_alluvium"                  = "Sedimentary",
-  "vaqueros_formation_sandstone"    = "Sedimentary",
-  "vaqueros_formation_conglomerate" = "Sedimentary",
-  "monterey_formation"              = "Sedimentary",
-  "tuff"                            = "Sedimentary",
-  "cozy_dell_shale"                 = "Sedimentary",
-  "rincon_shale"                    = "Sedimentary",
-  "shale"                           = "Sedimentary",
-  "greenstone"                      = "Metamorphic",
-  "serpentine"                      = "Ultramafic",
-  "sci_schist"                      = "Metamorphic",
-  "schist_from_conglomerate"        = "Metamorphic"
-)
-
-
-
-
-
-
+# add location and cleanup riley n data
 rock_riley <- riley_rock_n |> 
   rename(n_ppm = nitrogen_ppm) |> 
   mutate(
@@ -297,113 +135,187 @@ rock_riley <- riley_rock_n |>
     source = "Riley"
   )
 
-
-samples <- rock_nitrogen |>
-  clean_names() |>
+riley_n <- rock_riley |> 
+  rename(lithology = rock_type) |>
+  rename(n_ug = nitrogen_ug) |>
   mutate(
-    across(where(is.character), 
-           ~ str_squish(.) |> str_replace_all(" ", "_") |> tolower()),
-    soaked = case_when(
-      str_detect(sample_id, "-p-") ~ "yes",
-      str_detect(sample_id, "-n-") ~ "no",
-      TRUE ~ NA
+    rock_type = case_when(
+      lithology == "sci_schist" ~ "green_schist",
+      TRUE ~ lithology
+    )) 
+
+
+
+riley_rocks <- riley_n |> 
+ mutate(
+    
+    sample_rock = case_when(
+      
+      str_detect(sample_name, "^grschist") ~ "green_schist",
+      
+      sample_name == "wdg-1" ~ "diorite",
+      sample_name == "wdg-2" ~ "diorite",
+      
+      sample_name == "tjv-1" ~ "sandstone",
+      sample_name == "tjv-2" ~ "sandstone",
+      
+      sample_name == "qoa-1" ~ "older_alluvium",
+      
+      sample_name == "tvs-s" ~ "sandstone",
+      sample_name == "tvs-c" ~ "sandstone_conglomerate",
+      
+      str_detect(sample_name, "^tr") ~ "shale",
+      str_detect(sample_name, "^tcd") ~ "shale",
+      
+      sample_name == "montsi-1" ~ "shale",
+      sample_name == "tuff-1" ~ "tuff",
+      
+      TRUE ~ NA_character_
     ),
-    sample_name = str_extract(sample_id, "(.*)-[pn]-"),
-    location = if_else(str_detect(sample_name, "p1"), "Sedgwick", "SCI"),
-    source = "samples"
+    
+    
+    geologic_unit = case_when(
+      
+      str_detect(sample_name, "^grschist") ~ "sc",
+      
+      str_detect(sample_name, "^wdg") ~ "wdg",
+      
+      str_detect(sample_name, "^tjv") ~ "Tjv",
+      
+      str_detect(sample_name, "^tvs") ~ "Tvs",
+      
+      str_detect(sample_name, "^tr") ~ "Tr",
+      str_detect(sample_name, "^tcd") ~ "Tcd",
+      
+      str_detect(sample_name, "^qoa") ~ "Qua",
+      
+      sample_name == "montsi-1" ~ "Tm",
+      sample_name == "tuff-1" ~ "Tm",
+      
+      TRUE ~ NA_character_
+    )
   ) |>
-  filter(soaked == "yes",
-         sample_name != "ref_soil")
+  select(sample_name, sample_rock, location, geologic_unit, n_ppm, n_ug)
 
 
-rock_all <- bind_rows(
-  rock_riley |> 
-    select(sample_id, rock_type, n_ppm, location, sample_name, source),
 
-  samples |> 
-    select(sample_id, rock_type, n_ppm, location, sample_name, source)
-) 
-  
+#join data sets
+rock_all <- full_join(summer_rocks, riley_rocks) 
 
-rock_new <- rock_all %>%
+# adding proper x-axis name column
+data_combined <- rock_all |>
+  filter(sample_rock != "blue_schist") |> 
   mutate(
-    lithology = case_when(
-      rock_type == "gabbro_diorite"                   ~ "Gabbro–Diorite",
-      rock_type == "jolla_viejo_formation_sandstone" ~ "Sandstone (Tjv)",
-      rock_type == "jolla_viejo_formation"           ~ "Sandstone (Tjv)",
-      rock_type == "older_alluvium"                  ~ "Alluvium (Qoa)",
-      rock_type == "vaqueros_formation_sandstone"    ~ "Sandstone (Tvs)",
-      rock_type == "vaqueros_formation_conglomerate" ~ "Conglomerate (Tvs)",
-      rock_type == "monterey_formation"              ~ "Mudstone/Shale (Tmo)",
-      rock_type == "tuff"                            ~ "Tuff (Ttu)",
-      rock_type == "cozy_dell_shale"                 ~ "Shale (Tcd)",
-      rock_type == "rincon_shale"                    ~ "Shale (Trn)",
-      rock_type == "shale"                           ~ "Shale (Tr)",
-      rock_type == "greenstone"                      ~ "Greenstone (Jsv)",
-      rock_type == "serpentine"                      ~ "Serpentinite (Jsp)",
-      rock_type == "sci_schist"                      ~ "Schist",
-      rock_type == "schist_from_conglomerate"        ~ "'Blue' Schist",
-      TRUE ~ "Unknown"
+    rock_name = case_when(
+      
+      # ---- SCI ----
+      sample_name %in% c("wdg-1", "wdg-2") ~ "Diorite (wdg)",
+      sample_name == "tjv-1" ~ "Sandstone (Tjv)",
+      sample_name == "tjv-2" ~ "Sandstone (Tjv)",
+      sample_name %in% c("tvs-s") ~ "Sandstone (Tvs)",
+      sample_name %in% c("tvs-c") ~ "Conglomerate (Tvs)",
+      sample_name %in% c("tr-1", "tr-2n") ~ "Shale (Tr)",
+      sample_name %in% c("tcd-1", "tcd-2", "tcd-3") ~ "Shale (Tcd)",
+      sample_name %in% c("grschist-1", "grschist-2") ~ "Green Schist (sc)",
+      sample_name == "qoa-1" ~ "Older Alluvium (Qoa)",
+      sample_name == "montsi-1" ~ "Shale (Tm)",
+      sample_name == "tuff-1" ~ "Tuff (Tm)",
+      
+ 
+      # ---- Sedgwick ----
+      
+      sample_name == "brncp1" ~ "Siltstone (Qpr)",
+      sample_name == "trncp1" ~ "Greenstone (f)",
+      sample_name == "trwcp1-1" ~ "Diorite (f)",
+      sample_name == "trwcp1-2" ~ "Serpentine (f)",
+      sample_name == "trwcp1-3" ~ "Shale (f)",
+      sample_name == "trwcp1-4" ~ "Basalt (f)",
+      sample_name == "trwcp1-5" ~ "Mudstone (f)",
+      
+      TRUE ~ NA_character_
+    ),
+      map_unit = case_when(
+      geologic_unit == "sc"      ~ "Santa Cruz Island Schist (sc)",
+      geologic_unit == "wdg"     ~ "Willows Plutonic Complex (wdg)",
+      geologic_unit == "Tjv"     ~ "Jolla Viejo Formation (Tjv)",
+      geologic_unit == "Tvs"     ~ "Vaqueros Formation (Tvs)",
+      geologic_unit == "Tr"      ~ "Rincon Formation (Tr)",
+      geologic_unit == "Tcd"     ~ "Cozy Dell Formation (Tcd)",
+      geologic_unit == "Tm"      ~ "Monterey Formation (Tm)",
+      geologic_unit %in% c("Qoa", "Qua") ~ "Older Alluvium (Qoa)",
+      geologic_unit == "Qpr"     ~ "Paso Robles Formation (Qpr)",
+      geologic_unit == "f_sp-db" ~ "Franciscan Assemblage (f-sp db f)",
+      TRUE ~ geologic_unit
     )
   )
 
-rock_prep <- rock_new %>%
-  mutate(
-    rock_class = case_when(
-      rock_type == "gabbro_diorite" ~ "Igneous",
-      
-      rock_type %in% c(
-        "jolla_viejo_formation_sandstone",
-        "jolla_viejo_formation",
-        "older_alluvium",
-        "vaqueros_formation_sandstone",
-        "vaqueros_formation_conglomerate",
-        "monterey_formation",
-        "tuff",
-        "cozy_dell_shale",
-        "rincon_shale",
-        "shale"
-      ) ~ "Sedimentary",
-      
-      rock_type %in% c(
-        "greenstone",
-        "sci_schist",
-        "schist_from_conglomerate"
-      ) ~ "Metamorphic",
-      
-      rock_type == "serpentine" ~ "Ultramafic",
-      
-      TRUE ~ "Unknown"
-    )
+
+
+
+  # ---- Boxplot ---- 
+data_combined |> 
+  group_by(location, rock_name) |> 
+ ggplot(
+       aes(x = rock_name, y = n_ppm,
+           color = sample_rock, fill = sample_rock)) +
+  geom_boxplot(width = .8, position = position_dodge(width = 0.4), alpha = 0.6) +
+    facet_grid(scales = "free_x", 
+             space = "free_x",
+             ~location,
+             labeller = 
+               as_labeller(c(
+                 SCI = "Santa Cruz Island", 
+                 sedgwick = "Sedgwick"))
+  ) +
+   scale_fill_paletteer_d("ggthemes::Miller_Stone") +
+  scale_color_paletteer_d("ggthemes::Miller_Stone") +
+  labs(y = "Nitrogen (ppm)") +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12,face = "bold"),
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title.x = element_blank(),
+    legend.position = "none",
+    axis.title.y = element_text(face = "bold", size = 12)
   )
 
-rock_p <- rock_prep %>%
-  rename(
-    SampleID = sample_name,
-    Lithology = lithology,
-    Source = source,
-    Location = location,
-    RockClass = rock_class
-  ) %>% 
+n_distinct(data_combined$sample_rock)
+```
+
+
+```{r}
+
+
+data_combined |>
   mutate(
-    SampleID = str_extract(SampleID, "^[^-]+")
+    rock_name = reorder_within(rock_name, n_ppm, location, fun = median)
+  ) |>
+  ggplot(aes(
+    x = rock_name,
+    y = n_ppm,
+    fill = sample_rock,
+    color = sample_rock
+  )) +
+  geom_boxplot(width = 0.8, alpha = 0.6) +
+  facet_grid(~location,
+            scales = "free_x", 
+            space = "free_x",
+            labeller = 
+             as_labeller(c(
+               SCI = "Santa Cruz Island", 
+               sedgwick = "Sedgwick"))) +
+  scale_x_reordered() +   # VERY IMPORTANT
+  scale_fill_paletteer_d("ggthemes::Miller_Stone") +
+  scale_color_paletteer_d("ggthemes::Miller_Stone") +
+  labs(y = "Nitrogen (ppm)", x = NULL) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 50, hjust = 1, size = 11, face = "bold"),
+    strip.text = element_text(face = "bold", size = 12),
+    legend.position = "none",
+    axis.title.y = element_text(face = "bold", size = 12)
   )
-
-
-
-
-table_rock <- rock_p |> 
-  group_by(Location, Source) |> 
-   distinct(SampleID, .keep_all = TRUE) |> 
-  select(SampleID, Lithology, Source, Location, RockClass)
-
-
-
-test <- flextable(table_rock)
-print(test)
   
-
-
-
+  
 ```
 

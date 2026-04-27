@@ -1,0 +1,214 @@
+---
+title: "Rock Nitrogen"
+author: "Rebecca Martinez"
+date: "November 14, 2025"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  error = FALSE
+)
+
+library(tidyverse)
+library(janitor)
+library(paletteer)
+library(tidytext)
+
+# =========================================================
+# 1. SUMMER DATA
+# =========================================================
+
+summer_tbl <- read_csv("data_raw/rock_samples_SIF_results.csv") |>
+  clean_names() |>
+  rename(n_ug = n_mg) |>
+  mutate(
+    across(
+      where(is.character),
+      ~ str_squish(.) |> str_replace_all(" ", "_") |> tolower()
+    ),
+    sample_name = str_remove(sample_id, "-[pn]-\\d+$"),
+    location = if_else(
+      str_detect(sample_name, "^(trn|trw|brn)"),
+      "sedgwick",
+      "SCI"
+    ),
+    rock_type = case_when(
+      rock_type == "schist_from_conglomerate" ~ "blue_schist",
+      sample_name == "tvs-c" ~ "vaqueros_conglomerate",
+      TRUE ~ rock_type
+    )
+  ) |>
+  filter(rock_type != "ref_soil")
+
+summer_plot <- summer_tbl |>
+  mutate(
+    sample_rock = case_when(
+      sample_name == "sci-blue-schist" ~ "blue_schist",
+      sample_name == "brncp1" ~ "shale",
+      sample_name == "trncp1" ~ "greenstone",
+      sample_name == "trwcp1-1" ~ "serpentine",
+      sample_name == "trwcp1-2" ~ "serpentine",
+      sample_name == "trwcp1-3" ~ "shale",
+      sample_name == "trwcp1-4" ~ "greenstone",
+      sample_name == "trwcp1-5" ~ "greenstone",
+      sample_name %in% c("tcd-1", "tcd-2", "tcd-3") ~ "shale",
+      sample_name %in% c("tr-1", "tr-2n") ~ "shale",
+      sample_name %in% c("tjv-1", "tjv-2") ~ "sandstone",
+      sample_name == "tvs-c" ~ "conglomerate",
+      sample_name == "tvs-s" ~ "sandstone",
+      TRUE ~ NA_character_
+    ),
+    geologic_unit = case_when(
+      sample_name == "sci-blue-schist" ~ "sc",
+      sample_name == "brncp1" ~ "Qpr",
+      sample_name %in% c("trncp1", "trwcp1-1", "trwcp1-2",
+                         "trwcp1-3", "trwcp1-4", "trwcp1-5") ~ "f_sp-db",
+      sample_name %in% c("tcd-1", "tcd-2", "tcd-3") ~ "Tcd",
+      sample_name %in% c("tr-1", "tr-2n") ~ "Tr",
+      sample_name %in% c("tjv-1", "tjv-2") ~ "Tjv",
+      sample_name %in% c("tvs-c", "tvs-s") ~ "Tvs",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  select(sample_name, sample_rock, location, geologic_unit, n_ppm, n_ug)
+
+# =========================================================
+# 2. RILEY DATA
+# =========================================================
+
+riley_plot <- read_csv("data_raw/rileyh_n_data.csv") |>
+  clean_names() |>
+  rename(
+    n_ppm = nitrogen_ppm,
+    n_ug = nitrogen_ug
+  ) |>
+  mutate(
+    across(where(is.character), str_to_lower),
+    location = "SCI",
+    sample_name = str_replace(sample_id, "-[0-9]+$", "")
+  ) |>
+  mutate(
+    sample_rock = case_when(
+      str_detect(sample_name, "^grschist") ~ "green_schist",
+      str_detect(sample_name, "^wdg") ~ "diorite",
+      str_detect(sample_name, "^tjv") ~ "sandstone",
+      sample_name == "qoa-1" ~ "older_alluvium",
+      sample_name == "tvs-s" ~ "sandstone",
+      sample_name == "tvs-c" ~ "conglomerate",
+      str_detect(sample_name, "^tr") ~ "shale",
+      str_detect(sample_name, "^tcd") ~ "shale",
+      sample_name == "montsi-1" ~ "shale",
+      sample_name == "tuff-1" ~ "tuff",
+      TRUE ~ NA_character_
+    ),
+    geologic_unit = case_when(
+      str_detect(sample_name, "^grschist") ~ "sc",
+      str_detect(sample_name, "^wdg") ~ "wdg",
+      str_detect(sample_name, "^tjv") ~ "Tjv",
+      str_detect(sample_name, "^tvs") ~ "Tvs",
+      str_detect(sample_name, "^tr") ~ "Tr",
+      str_detect(sample_name, "^tcd") ~ "Tcd",
+      str_detect(sample_name, "^qoa") ~ "Qoa",
+      sample_name %in% c("montsi-1", "tuff-1") ~ "Tm",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  select(sample_name, sample_rock, location, geologic_unit, n_ppm, n_ug)
+
+# =========================================================
+# 3. COMBINE
+# =========================================================
+
+combined_plot <- bind_rows(summer_plot, riley_plot)
+
+# =========================================================
+# 4. LABELS
+# =========================================================
+
+final_plot_tbl <- combined_plot |>
+  filter(sample_rock != "blue_schist") |>
+  mutate(
+    rock_name = case_when(
+      sample_name %in% c("wdg-1", "wdg-2") ~ "Willows diorite",
+      sample_name %in% c("tjv-1", "tjv-2") ~ "Jolla Viejo sandstone",
+      sample_name == "tvs-s" ~ "Vaqueros sandstone",
+      sample_name == "tvs-c" ~ "Vaqueros conglomerate",
+      sample_name %in% c("tr-1", "tr-2n") ~ "Rincon shale",
+      sample_name %in% c("tcd-1", "tcd-2", "tcd-3") ~ "Cozy Dell shale",
+      sample_name %in% c("grschist-1", "grschist-2") ~ "Santa Cruz schist",
+      sample_name == "qoa-1" ~ "Older alluvium",
+      sample_name == "montsi-1" ~ "Monterey shale",
+      sample_name == "tuff-1" ~ "Monterey tuff",
+      sample_name == "brncp1" ~ "Paso Robles shale",
+      sample_name == "trncp1" ~ "Franciscan greenstone",
+      sample_name %in% c("trwcp1-1", "trwcp1-2") ~ "Franciscan serpentine",
+      sample_name == "trwcp1-3" ~ "Franciscan shale",
+      sample_name %in% c("trwcp1-4", "trwcp1-5") ~ "Franciscan greenstone",
+      TRUE ~ NA_character_
+    )
+  )
+
+order_levels <- c(
+  "Santa Cruz schist",
+  "Willows diorite",
+  "Monterey tuff",
+  "Monterey shale",
+  "Older alluvium",
+  "Rincon shale",
+  "Vaqueros conglomerate",
+  "Jolla Viejo sandstone",
+  "Cozy Dell shale",
+  "Vaqueros sandstone",
+  "Franciscan greenstone",
+  "Franciscan serpentine",
+  "Franciscan shale",
+  "Paso Robles shale"
+)
+
+final_plot_tbl <- final_plot_tbl |>
+  mutate(
+    rock_name = factor(rock_name, levels = order_levels)
+  )
+
+# =========================================================
+# 5. PLOT
+# =========================================================
+
+ggplot(
+  final_plot_tbl,
+  aes(x = rock_name, y = n_ppm, fill = sample_rock, color = sample_rock)
+) +
+  geom_boxplot(width = 0.8, alpha = 0.6) +
+  facet_grid(
+    ~location,
+    scales = "free_x",
+    space = "free_x",
+    labeller = as_labeller(c(
+      SCI = "Santa Cruz Island",
+      sedgwick = "Sedgwick"
+    ))
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  scale_fill_paletteer_d("ggthemes::Miller_Stone") +
+  scale_color_paletteer_d("ggthemes::Miller_Stone") +
+  labs(y = "Nitrogen (ppm)", x = NULL) +
+  theme_classic(base_size = 12) +
+  theme(  
+    axis.text.x = element_text(angle = 50, hjust = 1, size = 11, face = "bold"),
+    strip.text = element_text(face = "bold", size = 12),
+    legend.position = "none",
+    axis.title.y = element_text(face = "bold", size = 12)
+  )
+  
+
+```
+
+
